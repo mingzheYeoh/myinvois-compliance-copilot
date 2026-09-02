@@ -1,0 +1,255 @@
+# Golden regression set - 20 questions.
+#
+# Every expectation below is written from the guideline text (or from a table in
+# data/rules/, which was transcribed from it), NOT from what the system happens
+# to output. `why` records the source so a reviewer can check the expectation
+# itself rather than trusting the suite. If the system disagrees with an
+# expectation, the expectation stays and the disagreement is a finding.
+#
+# Fields
+#   question / turns   one message, or a multi-turn conversation on one thread
+#   expected_route     router intent: general_qa | applicability | field_check
+#   expected_sections  substrings that must match a citation in the final answer,
+#                      compared against "<doc> v<version> §<section>, p<page>"
+#   expected_facts     substrings that must appear in the final answer
+#   must_not_contain   known failure modes; presence is a hard fail
+
+- id: q01
+  question: What is the exemption threshold for e-Invoice implementation?
+  expected_route: applicability
+  expected_sections: ["Guideline v4.8 §1.6.1"]
+  expected_facts: ["RM3,000,000"]
+  must_not_contain: ["RM1,000,000"]
+  why: >-
+    Guideline v4.8 §1.6.1(e), p15: "annual turnover or revenue of less than
+    RM3,000,000". The FAQ (2026-05-05) still says RM1,000,000 and is stale;
+    precedence puts the Guideline above it. This is the Day 2 Q1 failure.
+
+- id: q02
+  question: My business started in 2024 with RM2M turnover. When must I implement e-Invoice?
+  expected_route: applicability
+  expected_sections: []
+  expected_facts: ["RM3,000,000", "related company"]
+  must_not_contain: ["1 January 2026"]
+  why: >-
+    RM2,000,000 is below the §1.6.1(e) threshold, so the answer turns on the
+    §1.6.10 carve-outs (p17) - a non-individual shareholder, holding company or
+    related company at RM3,000,000 removes the exemption. That is not stated, so
+    the correct response is to ask for it, not to give a date. Day 4 regression:
+    the model answered "1 January 2026" over the rule engine's missing-input list.
+
+- id: q03
+  turns:
+    - My business started in 2024 with RM2M turnover. When must I implement e-Invoice?
+    - >-
+      It started in 2024, and no, I have no corporate shareholder, holding company
+      or related company of any size.
+  expected_route: applicability
+  expected_sections: ["Guideline v4.8 §1.6.1"]
+  expected_facts: ["exempt"]
+  must_not_contain: ["1 July 2026"]
+  why: >-
+    Same profile, now complete: turnover below RM3,000,000 (§1.6.1(e), p15) with
+    no §1.6.10 carve-out means exempt from issuing e-Invoice, so there is no
+    implementation date at all. Tests multi-turn profile collection: turn 2 must
+    add to the profile from turn 1, not replace it.
+
+- id: q04
+  question: Can I issue a consolidated e-Invoice for a RM12,000 sale?
+  expected_route: applicability
+  expected_sections: ["Specific Guideline v4.8 §3.7"]
+  expected_facts: ["RM10,000"]
+  must_not_contain: ["may be consolidated", "can be consolidated"]
+  why: >-
+    Specific Guideline §3.7.2 Table 3.6 row 7, p33: any single transaction
+    "exceeding RM10,000" needs its own e-Invoice, effective 1 January 2026.
+    RM12,000 exceeds it, so consolidation is not allowed.
+
+- id: q05
+  question: Can I issue a consolidated e-Invoice for a sale of exactly RM10,000?
+  expected_route: applicability
+  expected_sections: ["Specific Guideline v4.8 §3.7"]
+  expected_facts: ["RM10,000"]
+  must_not_contain: ["may not be consolidated", "cannot be consolidated", "not allowed"]
+  why: >-
+    Boundary pair with q04. Table 3.6 row 7 says "exceeding RM10,000", so exactly
+    RM10,000 does NOT exceed it and may still be consolidated.
+
+- id: q06
+  question: What is the Special Voluntary Disclosure Programme for e-Invoice?
+  expected_route: general_qa
+  expected_sections: ["Specific Guideline v4.8 §17"]
+  expected_facts: ["7 July 2026", "31 December 2027"]
+  must_not_contain: []
+  why: >-
+    Specific Guideline §17.1, p123: the e-Invoice SVDP runs "starting from
+    7 July 2026 until 31 December 2027". Both dates are the substance of the
+    answer.
+
+- id: q07
+  question: When is a self-billed e-Invoice required?
+  expected_route: applicability
+  expected_sections: ["Specific Guideline v4.8 §8"]
+  expected_facts: ["foreign supplier"]
+  must_not_contain: []
+  why: >-
+    Specific Guideline §8.3, p63: the Buyer issues a self-billed e-Invoice for
+    payments to agents/dealers/distributors, goods or services from foreign
+    suppliers, and profit distribution, among others.
+
+- id: q08
+  question: What are the mandatory fields in an e-Invoice?
+  expected_route: field_check
+  expected_sections: ["Guideline v4.8 §Appendix 1"]
+  expected_facts: ["Supplier's TIN", "Buyer's Name"]
+  must_not_contain: []
+  why: >-
+    Guideline Appendix 1, p44-52. Answered from data/rules/invoice_fields.json
+    (27 mandatory), not from prose. Day 2 Q6 retrieved nothing usable.
+
+- id: q09
+  question: How long is the relaxation period for Phase 4?
+  expected_route: applicability
+  expected_sections: ["Specific Guideline v4.8 §16.1"]
+  expected_facts: ["31 December 2027"]
+  must_not_contain: ["six (6) months", "six (6)-month"]
+  why: >-
+    Specific Guideline Table 16.1 row 4, p121: phase 4 is relaxed until
+    31 December 2027. §16.1's lead sentence says "six (6)-month interim
+    relaxation period", which is true of phases 1-3 only. Day 2 Q7 read the
+    sentence and ignored the table. A correct answer may still mention that
+    phases 1-3 are six months, so only the verbatim "six (6)" phrasing is barred.
+
+- id: q10
+  question: What is the penalty for not issuing an e-Invoice?
+  expected_route: general_qa
+  expected_sections: ["§PART 2 Q33"]
+  expected_facts: ["Section 120", "RM20,000"]
+  must_not_contain: []
+  why: >-
+    FAQ Part 2 Q33, p17: an offence under Section 120(1)(d) of the Income Tax Act
+    1967, "a fine of not less than RM200 and not more than RM20,000 or
+    imprisonment not exceeding 6 months or both, for each non-compliance".
+
+- id: q11
+  question: Do I need to issue an e-Invoice for salary payments to my employees?
+  expected_route: applicability
+  expected_sections: ["Guideline v4.8 §1.6.7"]
+  expected_facts: ["Employment income"]
+  must_not_contain: []
+  why: >-
+    Guideline §1.6.7(a), p16: an e-Invoice (including self-billed) is not
+    required for employment income. This holds regardless of the employer's own
+    e-Invoice obligation.
+
+- id: q12
+  question: Do I need to issue an e-Invoice when my company distributes dividends?
+  expected_route: applicability
+  expected_sections: ["Guideline v4.8 §1.6.7"]
+  expected_facts: ["dividend"]
+  must_not_contain: []
+  why: >-
+    Guideline §1.6.7(d), p16: not required for "distribution of dividend in
+    specific circumstances", which cross-refers to Specific Guideline Section 11.
+    Note §8.3(c) requires a self-billed e-Invoice for profit distribution outside
+    those circumstances, so the answer should be qualified, not a flat "no".
+
+- id: q13
+  question: Do I need to issue an e-Invoice for zakat payments?
+  expected_route: applicability
+  expected_sections: ["Guideline v4.8 §1.6.7"]
+  expected_facts: ["akat"]
+  must_not_contain: []
+  why: "Guideline §1.6.7(e), p16: zakat needs no e-Invoice. ('akat' matches either case.)"
+
+- id: q14
+  question: >-
+    My company is wholly owned by a foreign diplomatic office. Are we exempt from
+    issuing e-Invoices?
+  expected_route: applicability
+  expected_sections: ["Guideline v4.8 §1.6.5"]
+  expected_facts: ["1.5"]
+  must_not_contain: []
+  why: >-
+    Guideline §1.6.5, p16: "The exemption in Section 1.6.1 will only be
+    applicable to said persons. Any entities ... owned by the above-mentioned
+    persons would still be required to implement e-Invoice, in accordance with
+    the e-Invoice implementation timeline in Section 1.5." The exemption is not
+    inherited; the entity keeps only its own §1.6.1(e) turnover exemption.
+
+- id: q15
+  question: >-
+    My company started operating in 2019, has annual turnover of RM1,500,000, and
+    has no corporate shareholder, holding company or related company of any size.
+    Must I issue e-Invoices?
+  expected_route: applicability
+  expected_sections: ["Guideline v4.8 §1.6.1"]
+  expected_facts: ["exempt", "RM3,000,000"]
+  must_not_contain: ["RM1,000,000"]
+  why: >-
+    The version-sensitive case. Under v4.8 §1.6.1(e) the threshold is
+    RM3,000,000, so RM1,500,000 is exempt (no §1.6.10 carve-out applies). Under
+    the archived v4.6, where the threshold was RM1,000,000, the same business was
+    NOT exempt and would have fallen into the §1.5 timeline. Answering with
+    RM1,000,000 means the stale FAQ beat the current Guideline.
+
+- id: q16
+  question: |-
+    Check this invoice: {"Supplier's Name": "ACME Sdn Bhd", "Supplier's TIN": "C1234567890", "Buyer's Name": "Bob Tan", "Invoice Date and Time": "2026-09-01", "Total Excluding Tax": "5000.00"}
+  expected_route: field_check
+  expected_sections: ["Guideline v4.8 §Appendix 1"]
+  expected_facts: ["Buyer's TIN"]
+  must_not_contain: []
+  why: >-
+    Guideline Appendix 1, p44: Buyer's TIN (field 4) is mandatory and is absent
+    from this invoice, so the validation must report it as missing. Deterministic
+    - validate_fields, not the model, decides this.
+
+- id: q17
+  question: What is the corporate income tax rate for SMEs in Malaysia?
+  expected_route: general_qa
+  expected_sections: []
+  expected_facts: ["Not covered in the guidelines"]
+  must_not_contain: ["15%", "17%", "24%"]
+  why: >-
+    Genuinely outside the corpus: the three ingested documents cover e-Invoice
+    only, never income tax rates. The correct behaviour is the exact abstention
+    string, not an answer from the model's prior knowledge (the real rates are
+    15%/17%/24%, so quoting one is a hallucination even when it is right).
+
+- id: q18
+  question: Can I use MyInvois to submit my SST-02 return?
+  expected_route: general_qa
+  expected_sections: []
+  expected_facts: ["Not covered in the guidelines"]
+  must_not_contain: []
+  why: >-
+    Second abstention. SST returns are a Royal Malaysian Customs matter and
+    appear nowhere in the e-Invoice Guideline, Specific Guideline or FAQ.
+
+- id: q19
+  question: >-
+    My company has been operating since 2015, its FY2022 audited turnover was
+    RM30 million and its current annual turnover is RM30 million. When was my
+    e-Invoice implementation date?
+  expected_route: applicability
+  expected_sections: ["Guideline v4.8 §1.5"]
+  expected_facts: ["1 January 2025"]
+  must_not_contain: ["1 July 2026"]
+  why: >-
+    Guideline §1.5 Table 1.1, p12: "more than RM25 million and up to RM100
+    million" is phase 2, implementation date 1 January 2025. The table is keyed
+    on FY2022 turnover, not current turnover (§1.5, p13).
+
+- id: q20
+  question: Which industries can never issue a consolidated e-Invoice?
+  expected_route: applicability
+  expected_sections: ["Specific Guideline v4.8 §3.7"]
+  expected_facts: ["motor vehicle", "flight ticket"]
+  must_not_contain: []
+  why: >-
+    Specific Guideline §3.7.2 Table 3.6, p32-33 lists the activities for which a
+    consolidated e-Invoice is not allowed at any value: sale of motor vehicles,
+    flight tickets and private charter, construction contracts, betting and
+    gaming pay-outs, payments to agents/dealers/distributors, and (from
+    1 January 2026) electricity and telecommunication.

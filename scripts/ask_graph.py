@@ -43,6 +43,13 @@ def run_one(graph, question: str, thread: str) -> dict:
 
 
 def main() -> int:
+    import os
+
+    from app.budget import limit, used
+    from app.rag.chain import get_llm
+
+    print(f"models: generate={get_llm().model_name}  structured={get_llm(small=True).model_name}"
+          f"  budget={used()}/{limit()}  DAILY_TOKEN_BUDGET={os.getenv('DAILY_TOKEN_BUDGET')}")
     graph = build_graph()
 
     if "--twoturn" in sys.argv:

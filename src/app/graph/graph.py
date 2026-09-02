@@ -34,16 +34,27 @@ from app.tools.validate_fields import field_list, validate_fields
 
 MAX_RETRIES = 2
 
+# Fields that mean "the user is asking about their own business". Anything else
+# on the profile (industry, or fy2022_period_months, which defaults to 12 and so
+# is never None) must not turn a generic question into a request for details.
+DECISION_FIELDS = (
+    "annual_turnover", "commencement_year", "commencement_date", "fy2022_turnover",
+    "expected_first_year_turnover", "has_related_company_over_threshold",
+    "owned_by_exempt_person", "year_turnover_reached_threshold",
+)
+
 # A year at or before 2025 in the message means the sale may predate the
 # 1 Jan 2026 RM10,000 rule, which flips the answer. Assuming "today" there
 # would silently answer about a different transaction than the user asked about.
 PRE_RULE_YEAR = re.compile(r"\b(?:19\d\d|20[0-1]\d|202[0-5])\b")
 
 
-def structured(model):
+# Classifying and grading do not need the big model; generating a cited answer
+# does. Splitting them is the cheapest latency and token win available.
+def structured(model, small: bool = False):
     """Groq's gpt-oss models fail forced tool-use ("model did not call a tool")
     when there is nothing to extract. json_schema is reliable for both cases."""
-    return get_llm().with_structured_output(model, method="json_schema")
+    return get_llm(small=small).with_structured_output(model, method="json_schema")
 
 
 class State(TypedDict, total=False):
@@ -183,12 +194,35 @@ Context:
 
 # --- nodes ------------------------------------------------------------------
 
+# Cheap pre-router. These phrasings are unambiguous, so spending an LLM call to
+# classify them buys nothing. Anything not matched still goes to the model.
+APPLICABILITY_KW = re.compile(
+    r"\b(?:threshold|relaxation|exempt\w*|deadline|implementation date|"
+    r"phase\s*\d|when (?:must|do|does|should|is|are)|how long|"
+    r"do i (?:need|have to)|am i (?:required|exempt)|consolidat\w+|self-billed|"
+    r"turnover|RM\s?[\d,]{3,})\b",
+    re.I)
+# A JSON-ish object with at least one quoted key is invoice data, not prose.
+INVOICE_BLOCK = re.compile(r"\{[^{}]*[\"'][^\"']+[\"']\s*:", re.S)
+
+
+def pre_route(question: str) -> str | None:
+    """Route without an LLM where the wording is decisive. None = ask the model."""
+    if INVOICE_BLOCK.search(question):
+        return "field_check"
+    if APPLICABILITY_KW.search(question):
+        return "applicability"
+    return None
+
+
 def router(state: State) -> State:
     if state.get("determination", {}).get("blocking"):
         # Mid-collection: the user is answering our question, not asking a new
         # one. "It started in 2024" classifies as general_qa on its own.
         return {"intent": "applicability", "query": state["question"], "retry_count": 0}
-    route = structured(Route).invoke(
+    if (hit := pre_route(state["question"])) is not None:
+        return {"intent": hit, "query": state["question"], "retry_count": 0}
+    route = structured(Route, small=True).invoke(
         ROUTER_PROMPT.format_messages(question=state["question"]))
     return {"intent": route.intent, "query": state["question"], "retry_count": 0}
 
@@ -198,7 +232,7 @@ def retrieve(state: State) -> State:
 
 
 def grade_docs(state: State) -> State:
-    g = structured(Grade).invoke(
+    g = structured(Grade, small=True).invoke(
         GRADE_PROMPT.format_messages(
             question=state["question"], context=format_context(state["hits"])))
     return {"grade": "pass" if g.sufficient else "fail", "determination":
@@ -206,7 +240,7 @@ def grade_docs(state: State) -> State:
 
 
 def rewrite_query(state: State) -> State:
-    r = structured(Rewrite).invoke(
+    r = structured(Rewrite, small=True).invoke(
         REWRITE_PROMPT.format_messages(
             question=state["question"], query=state.get("query", ""),
             missing=state.get("determination", {}).get("_missing_ctx", "")))
@@ -215,7 +249,7 @@ def rewrite_query(state: State) -> State:
 
 def profile_extract(state: State) -> State:
     known = state.get("profile") or {}
-    got = structured(Extraction).invoke(
+    got = structured(Extraction, small=True).invoke(
         EXTRACT_PROMPT.format_messages(question=state["question"], known=known or "nothing"))
     # Multi-turn collection: a later turn adds fields, it never clears them.
     merged = {**known, **{k: v for k, v in got.profile.model_dump().items() if v is not None}}
@@ -241,7 +275,8 @@ def rule_engine(state: State) -> State:
     out["facts"] = [r.model_dump() for r in reference_facts()]
     # Only demand profile fields when the user is actually asking about their
     # own business. A bare "what is the exemption threshold?" is not that.
-    out["blocking"] = bool(profile) and bool(d.missing)
+    out["blocking"] = bool(d.missing) and any(
+        profile.get(f) is not None for f in DECISION_FIELDS)
     if raw and raw.get("needs_date"):
         # Do not assume today when the message mentions a pre-2026 year.
         out["missing"] = [*out.get("missing", []), "transaction_date"]
@@ -266,7 +301,7 @@ Read the user's message and decide which of three things it is.
 
 
 def validate_fields_node(state: State) -> State:
-    got = structured(InvoiceExtract).invoke(
+    got = structured(InvoiceExtract, small=True).invoke(
         INVOICE_PROMPT.format_messages(question=state["question"]))
     if got.is_invoice_data and got.fields:
         return {"field_report": validate_fields(got.fields).model_dump(),

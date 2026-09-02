@@ -16,6 +16,9 @@ from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from app.rag.retriever import Hit, search
 
 # Short names used in citations. Keys are the `doc` values in the manifest.
+# 8K TPM is the binding limit, so throttling is routine rather than exceptional.
+MAX_RETRIES = 3
+
 SHORT = {
     "general_guideline": "Guideline",
     "specific_guideline": "Specific Guideline",
@@ -49,20 +52,46 @@ def format_context(hits: list[Hit]) -> str:
     )
 
 
-def get_llm():
-    """One place the provider is chosen. LLM_PROVIDER=groq|azure, groq by default."""
+class Busy(RuntimeError):
+    """Groq throttled us past the retry budget. Surfaced to the user as a
+    'busy, try again in a moment' message, never as a stack trace."""
+
+
+def get_llm(model: str | None = None, small: bool = False):
+    """One place the provider is chosen. LLM_PROVIDER=groq|azure, groq by default.
+
+    `small=True` picks the cheap model for classification-shaped nodes; the
+    daily budget picks the fallback provider once gpt-oss is spent. max_retries
+    gives every caller the Groq SDK's exponential backoff with jitter (it also
+    honours Retry-After up to 60s), so nothing downstream has to retry itself.
+    """
     provider = os.getenv("LLM_PROVIDER", "groq").lower()
     if provider == "groq":
         from langchain_groq import ChatGroq
 
-        return ChatGroq(model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"), temperature=0)
+        from app.budget import chosen_model, exhausted
+
+        # The budget outranks every pin, including an explicit GROQ_MODEL or a
+        # caller-supplied model. Otherwise the pin defeats the fallback and we
+        # get Groq's 429 instead of our own degraded-but-working service, which
+        # is the whole reason the budget exists.
+        if exhausted():
+            name = chosen_model(small)
+        elif model:
+            name = model
+        elif small:
+            name = os.getenv("GROQ_SMALL_MODEL") or chosen_model(small=True)
+        else:
+            name = os.getenv("GROQ_MODEL") or chosen_model()
+        return ChatGroq(model=name, temperature=0, max_retries=MAX_RETRIES)
     if provider == "azure":
         from langchain_openai import AzureChatOpenAI
 
         return AzureChatOpenAI(
-            azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT"],
+            azure_deployment=model or os.environ["AZURE_OPENAI_DEPLOYMENT"],
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
             temperature=0,
+            max_retries=MAX_RETRIES,
         )
     raise ValueError(f"LLM_PROVIDER must be 'groq' or 'azure', got {provider!r}")
 

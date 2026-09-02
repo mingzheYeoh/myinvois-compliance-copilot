@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyInvois Compliance Copilot</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1c1b19; --muted: #6b6862; --line: #e3ded6;
+    --card: #fff; --accent: #7a4b2a; --badge: #efe9e1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16150f; --fg: #eceae4; --muted: #9a958b; --line: #2f2c25;
+      --card: #1e1d16; --accent: #d8a26a; --badge: #2b2822;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 46rem; margin: 0 auto; padding: 2rem 1.1rem 4rem; }
+  h1 { font-size: 1.35rem; margin: 0 0 .2rem; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: .88rem; margin: 0 0 1.5rem; }
+  form { display: flex; gap: .5rem; }
+  textarea {
+    flex: 1; min-height: 3.2rem; resize: vertical; padding: .65rem .75rem;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--card);
+    color: inherit; font: inherit;
+  }
+  textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button {
+    padding: .65rem 1.1rem; border: 0; border-radius: 8px; cursor: pointer;
+    background: var(--accent); color: #fff; font: 600 .95rem/1 inherit;
+  }
+  button[disabled] { opacity: .55; cursor: progress; }
+  .msg { margin-top: 1.5rem; }
+  .q { color: var(--muted); font-size: .9rem; margin-bottom: .4rem; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: .9rem 1rem;
+  }
+  .badge {
+    display: inline-block; background: var(--badge); color: var(--muted);
+    border-radius: 999px; padding: .12rem .6rem; font-size: .72rem;
+    letter-spacing: .04em; text-transform: uppercase; margin-bottom: .6rem;
+  }
+  .answer { white-space: pre-wrap; }
+  .cites { margin: .9rem 0 0; padding: .75rem 0 0; border-top: 1px solid var(--line); }
+  .cites h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em;
+              color: var(--muted); margin: 0 0 .4rem; }
+  .cites ol { margin: 0; padding-left: 1.2rem; font-size: .88rem; }
+  .cites li { margin: .15rem 0; }
+  .err { border-color: #b4562f; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line);
+           color: var(--muted); font-size: .78rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>MyInvois Compliance Copilot</h1>
+  <p class="sub">Questions about Malaysia's LHDN e-Invoice rules, answered with the
+     guideline version and section behind every claim.</p>
+
+  <form id="f">
+    <textarea id="q" placeholder="e.g. How long is the relaxation period for Phase 4?"
+              maxlength="2000" required></textarea>
+    <button id="go" type="submit">Ask</button>
+  </form>
+
+  <div id="out"></div>
+
+  <footer>
+    Informational only &mdash; not tax or legal advice. Verify every answer against
+    the cited sections of the official LHDN documents before relying on it.
+  </footer>
+</main>
+
+<script>
+const out = document.getElementById("out");
+const form = document.getElementById("f");
+const box = document.getElementById("q");
+const go = document.getElementById("go");
+let threadId = null;
+
+const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+function render(question, { badge, answer, citations = [], isError = false }) {
+  const cites = citations.length ? `
+    <div class="cites"><h2>Sources</h2><ol>${citations.map(c =>
+      `<li>${esc(c.doc)} v${esc(c.version)} &sect;${esc(c.section)}, p${c.page}</li>`
+    ).join("")}</ol></div>` : "";
+  out.insertAdjacentHTML("afterbegin", `
+    <div class="msg">
+      <div class="q">${esc(question)}</div>
+      <div class="card${isError ? " err" : ""}">
+        ${badge ? `<span class="badge">${esc(badge)}</span>` : ""}
+        <div class="answer">${esc(answer)}</div>
+        ${cites}
+      </div>
+    </div>`);
+}
+
+form.addEventListener("submit", async e => {
+  e.preventDefault();
+  const question = box.value.trim();
+  if (!question) return;
+  go.disabled = true;
+  go.textContent = "Asking…";
+  try {
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: question, thread_id: threadId })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      render(question, { badge: "error " + res.status, answer: data.error ||
+        "Request failed.", isError: true });
+    } else {
+      threadId = data.thread_id || threadId;
+      render(question, { badge: data.route || "answer", answer: data.answer,
+                         citations: data.citations });
+    }
+    box.value = "";
+  } catch (err) {
+    render(question, { badge: "network", answer: "Could not reach the server.",
+                       isError: true });
+  } finally {
+    go.disabled = false;
+    go.textContent = "Ask";
+    box.focus();
+  }
+});
+</script>
+</body>
+</html>

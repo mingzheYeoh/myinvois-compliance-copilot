@@ -15,10 +15,13 @@ dependencies = [
     "langsmith>=0.12.1",
     "pydantic>=2.13.5",
     "langgraph>=1.2.11",
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52.4",
+    "slowapi>=0.1.10",
 ]
 
 [dependency-groups]
-dev = ["ruff>=0.6", "pytest>=8.0"]
+dev = ["ruff>=0.6", "pytest>=8.0", "pyyaml>=6.0"]
 
 [tool.ruff]
 line-length = 100
@@ -30,6 +33,9 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
+# The golden set costs real Groq quota, so it is opt-in: `pytest -m slow`.
+markers = ["slow: hits the live LLM and spends the daily token budget"]
+addopts = "-m 'not slow'"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/app"]
