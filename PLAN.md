@@ -109,6 +109,29 @@ router
 
 **Design principle:** The LLM explains and cites; it never decides compliance outcomes. This separation is the main talking point in interviews.
 
+**Decisions from the Day 2 audit** (implement on Day 4):
+
+1. **Source conflicts are resolved by precedence, not by ranking.** The FAQ
+   (updated 5 May 2026) still states the old RM1,000,000 exemption threshold,
+   while Guideline v4.8 (30 Aug 2026) §1.6.1(e) states RM3,000,000. On Day 2 the
+   FAQ took 26 of 40 retrieval slots and the chain answered RM1 million — a
+   correctly-cited, verifiable, *outdated* answer. Fix is twofold:
+   - a **per-doc retrieval quota** in `retrieve`, so the FAQ cannot crowd out the
+     Guideline (the FAQ is question-shaped and therefore matches question-shaped
+     queries on both the vector and full-text side);
+   - a **fixed precedence stated in the `generate` prompt**:
+     **Guideline > Specific Guideline > FAQ**. Where sources disagree, the
+     Guideline governs and the answer says so.
+
+2. **Quantitative facts do not come from prose reading.** Relaxation periods,
+   thresholds, phase dates and effective dates come from `rule_engine`, never
+   from the model reading a chunk. Day 2 Q7 is the worked example: §16.1's lead
+   sentence says "six (6)-month interim relaxation period ... of each
+   implementation phase", but Table 16.1 row 4 grants phase 4 until
+   **31 December 2027**. The model cited the correct section and stated a false
+   number, because it read the prose and ignored the table in the same chunk.
+   No citation check catches that; only moving the number out of prose does.
+
 ### 4.2 Tech Stack
 
 | Layer | Choice | Reason |

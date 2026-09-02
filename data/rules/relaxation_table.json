@@ -1,0 +1,44 @@
+{
+  "_source": {
+    "doc": "e-Invoice Specific Guideline",
+    "version": "4.8",
+    "published": "2026-07-07",
+    "section": "16.1",
+    "table": "Table 16.1 - Interim relaxation period for each implementation phase",
+    "page": 121,
+    "extraction": "pdfplumber extract_tables() on p121 returns this table cleanly (4 data rows; the 'Period' header wraps onto its own row); the JSON below was hand-transcribed and then cross-checked cell-by-cell against that extraction - they agree exactly",
+    "verify": "docker exec <db> psql -U myinvois -d myinvois -c \"SELECT content FROM chunks WHERE doc='specific_guideline' AND section='16.1'\"",
+    "unchanged_in": [
+      "4.7"
+    ],
+    "granted_on": "2024-07-26"
+  },
+  "_warning": "The lead sentence of s16.1 says 'six (6)-month interim relaxation period ... of each implementation phase'. That is true for phases 1-3 ONLY. Table 16.1 row 4 grants phase 4 until 31 December 2027 - up to 24 months. Reading the prose and ignoring the table is exactly the error the Day 2 chain made on Q7.",
+  "phases": [
+    {
+      "phase": 1,
+      "from": "2024-08-01",
+      "until": "2025-01-31",
+      "months": 6
+    },
+    {
+      "phase": 2,
+      "from": "2025-01-01",
+      "until": "2025-06-30",
+      "months": 6
+    },
+    {
+      "phase": 3,
+      "from": "2025-07-01",
+      "until": "2025-12-31",
+      "months": 6
+    },
+    {
+      "phase": 4,
+      "from": "2026-01-01",
+      "until": "2027-12-31",
+      "months": null,
+      "note": "Table 16.1 row 4 lists both the 1 January 2026 and the 1 July 2026 implementation dates under the same end date of 31 December 2027."
+    }
+  ]
+}

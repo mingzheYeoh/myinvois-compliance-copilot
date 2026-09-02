@@ -1,0 +1,51 @@
+{
+  "_source": {
+    "doc": "e-Invoice Guideline",
+    "version": "4.8",
+    "published": "2026-08-30",
+    "section": "1.5",
+    "table": "Table 1.1 - Targeted taxpayers for each implementation target date",
+    "page": 12,
+    "extraction": "pdfplumber extract_tables() on p12 returns this table cleanly (4 data rows); the JSON below was hand-transcribed and then cross-checked cell-by-cell against that extraction - they agree exactly",
+    "verify": "docker exec <db> psql -U myinvois -d myinvois -c \"SELECT content FROM chunks WHERE doc='general_guideline' AND section='1.5' AND page=12\"",
+    "unchanged_in": [
+      "4.6"
+    ]
+  },
+  "_basis": {
+    "text": "Annual turnover or revenue is determined from the FY2022 audited financial statements, or the YA2022 tax return where there are no audited accounts. If the FY2022 accounting year-end changed, turnover is pro-rated to a 12-month period.",
+    "section": "1.5",
+    "page": 12,
+    "note": "Once determined, later changes in turnover do not change the obligation (s1.5, p13)."
+  },
+  "phases": [
+    {
+      "phase": 1,
+      "label": "more than RM100 million",
+      "min_exclusive": 100000000,
+      "max_inclusive": null,
+      "implementation_date": "2024-08-01"
+    },
+    {
+      "phase": 2,
+      "label": "more than RM25 million and up to RM100 million",
+      "min_exclusive": 25000000,
+      "max_inclusive": 100000000,
+      "implementation_date": "2025-01-01"
+    },
+    {
+      "phase": 3,
+      "label": "more than RM5 million and up to RM25 million",
+      "min_exclusive": 5000000,
+      "max_inclusive": 25000000,
+      "implementation_date": "2025-07-01"
+    },
+    {
+      "phase": 4,
+      "label": "up to RM5 million",
+      "min_exclusive": null,
+      "max_inclusive": 5000000,
+      "implementation_date": "2026-01-01"
+    }
+  ]
+}

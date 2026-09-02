@@ -13,6 +13,7 @@ dependencies = [
     "langchain-groq>=1.1.3",
     "langchain-openai>=1.6.0",
     "langsmith>=0.12.1",
+    "pydantic>=2.13.5",
 ]
 
 [dependency-groups]
@@ -27,6 +28,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src", "."]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/app"]
