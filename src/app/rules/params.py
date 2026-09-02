@@ -86,6 +86,35 @@ PARAMS: dict[str, dict[str, Any]] = {
             "telecommunication": "Postpaid / internet subscription and device sales"
                                  " (from 1 Jan 2026)",
         },
+        # §1.6.7, p16-17: transaction types for which no e-Invoice (including
+        # self-billed) is required, whatever the business's own status. Keys are
+        # the engine's identifiers; (g) carries its own exception.
+        "exempt_transaction_types": {
+            "employment_income": "Employment income.",
+            "pension": "Pension.",
+            "alimony": "Alimony.",
+            "dividend": "Distribution of dividend in specific circumstances (see "
+                        "Section 11 of the e-Invoice Specific Guideline).",
+            "zakat": "Zakat.",
+            "exchange_traded_securities": "Contract value for the buying or selling of "
+                                          "securities or derivatives traded on a stock "
+                                          "or derivatives exchange in Malaysia or "
+                                          "elsewhere.",
+            "unlisted_share_disposal": "Disposal of shares of a company not listed on "
+                                       "the stock exchange - EXCEPT where the disposer "
+                                       "is a company, limited liability partnership, "
+                                       "trust body or co-operative society, in which "
+                                       "case an e-Invoice IS required.",
+            "donation": "Donations or contributions received, as specified in Question "
+                        "1, Part A of the e-Invoice FAQs for Donations or Contributions.",
+        },
+        "exempt_transaction_ref": "Guideline v4.8 §1.6.7, p16-17",
+        # §1.6.5, p16: the §1.6.1 exemption belongs to the listed persons only.
+        # An entity owned by one of them does not inherit it and implements per
+        # the §1.5 timeline. Read as NOT destroying the entity's own §1.6.1(e)
+        # turnover exemption -- otherwise §1.6.10(a), which deliberately
+        # requires a NON-INDIVIDUAL shareholder at RM3m, would be redundant.
+        "owned_entity_ref": "Guideline v4.8 §1.6.5, p16",
         "no_consolidation_ref": "Specific Guideline v4.8 §3.7.2 Table 3.6, p32-33",
     },
     "4.6": {
@@ -122,6 +151,35 @@ PARAMS: dict[str, dict[str, Any]] = {
             "telecommunication": "Postpaid / internet subscription and device sales"
                                  " (from 1 Jan 2026)",
         },
+        # §1.6.7, p16-17: transaction types for which no e-Invoice (including
+        # self-billed) is required, whatever the business's own status. Keys are
+        # the engine's identifiers; (g) carries its own exception.
+        "exempt_transaction_types": {
+            "employment_income": "Employment income.",
+            "pension": "Pension.",
+            "alimony": "Alimony.",
+            "dividend": "Distribution of dividend in specific circumstances (see "
+                        "Section 11 of the e-Invoice Specific Guideline).",
+            "zakat": "Zakat.",
+            "exchange_traded_securities": "Contract value for the buying or selling of "
+                                          "securities or derivatives traded on a stock "
+                                          "or derivatives exchange in Malaysia or "
+                                          "elsewhere.",
+            "unlisted_share_disposal": "Disposal of shares of a company not listed on "
+                                       "the stock exchange - EXCEPT where the disposer "
+                                       "is a company, limited liability partnership, "
+                                       "trust body or co-operative society, in which "
+                                       "case an e-Invoice IS required.",
+            "donation": "Donations or contributions received, as specified in Question "
+                        "1, Part A of the e-Invoice FAQs for Donations or Contributions.",
+        },
+        "exempt_transaction_ref": "Guideline v4.6 §1.6.7, p16-17",
+        # §1.6.5, p16: the §1.6.1 exemption belongs to the listed persons only.
+        # An entity owned by one of them does not inherit it and implements per
+        # the §1.5 timeline. Read as NOT destroying the entity's own §1.6.1(e)
+        # turnover exemption -- otherwise §1.6.10(a), which deliberately
+        # requires a NON-INDIVIDUAL shareholder at RM3m, would be redundant.
+        "owned_entity_ref": "Guideline v4.6 §1.6.5, p16",
         "no_consolidation_ref": "Specific Guideline v4.7 §3.7.2 Table 3.6, p32-33",
     },
 }

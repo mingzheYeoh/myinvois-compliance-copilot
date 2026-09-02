@@ -40,8 +40,23 @@ QUESTIONS = [
 CITE = re.compile(r"[\[【]([^\]】]+?) v([^ \]】]+) §([^,\]】]+), ?p(\d+)[\]】]")
 
 
+# Models emit narrow / non-breaking spaces inside citations ("Table 3.6"),
+# which is a rendering choice, not a different section. Fold them before
+# comparing or the auditor reports fabrication that did not happen.
+SPACES = str.maketrans(dict.fromkeys(
+    # narrow/no-break spaces and the typographic hyphens models like to
+    # substitute inside citations: cosmetic, not a different section.
+    [" ", " ", " ", " "], " ")
+    | dict.fromkeys(
+    ["‐", "‑", "‒", "–", "—", "−"], "-"))
+
+
+def norm(text: str) -> str:
+    return text.translate(SPACES)
+
+
 def cited(answer: str) -> set[tuple[str, str, str, str]]:
-    return {m.groups() for m in CITE.finditer(answer)}
+    return {m.groups() for m in CITE.finditer(norm(answer))}
 
 
 def retrieved(hits) -> set[tuple[str, str, str, str]]:

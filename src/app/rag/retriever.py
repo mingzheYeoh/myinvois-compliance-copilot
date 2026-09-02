@@ -71,14 +71,42 @@ def latest_versions() -> tuple[str, ...]:
     return tuple(f"{e['doc']}:{e['version']}" for e in entries)
 
 
+# The FAQ is question-shaped, so it matches question-shaped queries on both the
+# vector and the full-text side and crowds the authoritative documents out. On
+# the Day 2 question set it took 26 of 40 slots and the chain answered from a
+# stale FAQ threshold. These are floors, not caps: RRF still orders everything.
+QUOTA = {"general_guideline": 2, "specific_guideline": 2}
+
+
+def _apply_quota(rows: list[Hit], k: int) -> list[Hit]:
+    picked: list[Hit] = []
+    taken: set[int] = set()
+    for doc, floor in QUOTA.items():
+        for i, hit in enumerate(rows):
+            if len(picked) >= k or sum(h.doc == doc for h in picked) >= floor:
+                break
+            if i not in taken and hit.doc == doc:
+                picked.append(hit)
+                taken.add(i)
+    for i, hit in enumerate(rows):  # RRF order fills whatever is left
+        if len(picked) >= k:
+            break
+        if i not in taken:
+            picked.append(hit)
+            taken.add(i)
+    return sorted(picked, key=lambda h: -h.score)
+
+
 def search(query: str, k: int = 5, versions: dict[str, str] | None = None) -> list[Hit]:
     """Top-k chunks for `query`. `versions` maps doc -> version; default is latest."""
     filt = [f"{d}:{v}" for d, v in versions.items()] if versions else list(latest_versions())
     qvec = _embedder().encode(QUERY_PREFIX + query, normalize_embeddings=True)
+    fetch = max(k * 4, POOL)  # deep enough that the quota has candidates to draw on
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         register_vector(conn)
         rows = conn.execute(
             SQL,
-            {"qvec": qvec, "qtext": query, "versions": filt, "pool": POOL, "rrf": RRF_K, "k": k},
+            {"qvec": qvec, "qtext": query, "versions": filt,
+             "pool": POOL, "rrf": RRF_K, "k": fetch},
         ).fetchall()
-    return [Hit(*r) for r in rows]
+    return _apply_quota([Hit(*r) for r in rows], k)

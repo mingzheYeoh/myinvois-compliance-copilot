@@ -1,0 +1,567 @@
+{
+  "_source": {
+    "doc": "e-Invoice Guideline",
+    "version": "4.8",
+    "published": "2026-08-30",
+    "section": "Appendix 1",
+    "table": "List of mandatory and optional fields for the e-Invoice",
+    "pages": [
+      44,
+      52
+    ],
+    "extraction": "pdfplumber extract_tables() per page, cleaned by scripts/extract_fields.py; status is parsed from the [Optional] / [Mandatory, where ...] marker LHDN embeds in the field-name cell",
+    "note": "'applies_to' is 'all' for every row: Appendix 1 is the general list. Self-billed and consolidated field variants live in Specific Guideline appendix tables and are not ingested yet."
+  },
+  "fields": [
+    {
+      "no": 1,
+      "name": "Supplier's Name",
+      "category": "Parties",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 44,
+      "description": "Name of business or individual who will be the issuer of the e-Invoice in a commercial transaction"
+    },
+    {
+      "no": 2,
+      "name": "Buyer's Name",
+      "category": "Parties",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 44,
+      "description": "Name of recipient of the e-Invoice in a commercial transaction"
+    },
+    {
+      "no": 3,
+      "name": "Supplier's TIN",
+      "category": "Supplier's Details",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 44,
+      "description": "Supplier's (i.e., issuer's) TIN assigned by IRBM"
+    },
+    {
+      "no": 4,
+      "name": "Supplier's Registration / Identification Number / Passport Number",
+      "category": "Supplier's Details",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 44,
+      "description": "For businesses: BRN* For Malaysian individual: MyKad / MyTentera identification number For non-Malaysian individual: Passport number / MyPR / MyKAS identification number *BRN refers to the official registration number issued by the government, authorities or relevant bodies under which the taxpayer is registered, established or incorporated (e.g., taxpayers registered with the Companies Commission of Malaysia (SSM) are required to only input the new BRN, which is 12-digit"
+    },
+    {
+      "no": 5,
+      "name": "Supplier's SST Registration Number",
+      "category": "Supplier's Details",
+      "status": "conditional",
+      "condition": "Mandatory for SST-registrant",
+      "applies_to": "all",
+      "page": 45,
+      "description": "Sales tax / service tax (SST) registration number of the Supplier *This is not applicable to Suppliers that are not SST-registered"
+    },
+    {
+      "no": 6,
+      "name": "Supplier's Tourism Tax Registration Number",
+      "category": "Supplier's Details",
+      "status": "conditional",
+      "condition": "Mandatory for tourism tax registrant",
+      "applies_to": "all",
+      "page": 45,
+      "description": "Tourism tax registration number of the Supplier. This is only applicable to tourism tax registrant, which may consist of hotel operators and online travel operators"
+    },
+    {
+      "no": 7,
+      "name": "Supplier's e-mail",
+      "category": "Supplier's Details",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 45,
+      "description": "E-mail address of the Supplier"
+    },
+    {
+      "no": 8,
+      "name": "Supplier's Malaysia Standard Industrial Classification (MSIC) Code",
+      "category": "Supplier's Details",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 45,
+      "description": "5-digit numeric code that represent the Supplier's business nature and activity"
+    },
+    {
+      "no": 9,
+      "name": "Supplier's Business Activity Description",
+      "category": "Supplier's Details",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 45,
+      "description": "Description of the Supplier's business activity"
+    },
+    {
+      "no": 10,
+      "name": "Buyer's TIN",
+      "category": "Buyer's Details",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 45,
+      "description": "Buyer's TIN assigned by IRBM"
+    },
+    {
+      "no": 11,
+      "name": "Buyer's Registration / Identification Number / Passport Number",
+      "category": "Buyer's Details",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 46,
+      "description": "For businesses: BRN* For Malaysian individual: MyKad / MyTentera identification number For non-Malaysian individual: Passport number / MyPR / MyKAS identification number *BRN refers to the official registration number issued by the government, authorities or relevant bodies under which the taxpayer is registered, established or incorporated (e.g., taxpayers registered with the Companies Commission of Malaysia (SSM) are required to only input the new BRN, which is 12-digit characters). For taxpayers who does not possess a BRN, any identification number may be assigned by the IRBM as deemed appropriate."
+    },
+    {
+      "no": 12,
+      "name": "Buyer's SST Registration Number",
+      "category": "Buyer's Details",
+      "status": "conditional",
+      "condition": "Mandatory for SST-registrant",
+      "applies_to": "all",
+      "page": 46,
+      "description": "SST registration number of the Buyer *This is not applicable to Buyers that are not SST-registered"
+    },
+    {
+      "no": 13,
+      "name": "Buyer's e-mail",
+      "category": "Buyer's Details",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 46,
+      "description": "E-mail address of the Buyer"
+    },
+    {
+      "no": 14,
+      "name": "Supplier's Address",
+      "category": "Address",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 46,
+      "description": "Address (registered, business, residential, etc.) of business or individual who will be the issuer of the e-Invoice in a commercial transaction"
+    },
+    {
+      "no": 15,
+      "name": "Buyer's Address",
+      "category": "Address",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 47,
+      "description": "Address (registered, business, residential, etc.) of recipient of the e-Invoice in a commercial transaction"
+    },
+    {
+      "no": 16,
+      "name": "Supplier's Contact Number",
+      "category": "Contact number",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 47,
+      "description": "The telephone number of the Supplier (e.g., office, mobile, fax)"
+    },
+    {
+      "no": 17,
+      "name": "Buyer's Contact Number",
+      "category": "Contact number",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 47,
+      "description": "The telephone number of the Buyer (e.g., office, mobile, fax)"
+    },
+    {
+      "no": 18,
+      "name": "e-Invoice Version",
+      "category": "Invoice details",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 47,
+      "description": "Current e-Invoice version (e.g., 1.0, 2.0, etc.)"
+    },
+    {
+      "no": 19,
+      "name": "e-Invoice Type",
+      "category": "Invoice details",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 47,
+      "description": "Identifies the document type (e.g., invoice, credit note, debit note, refund note, etc.)"
+    },
+    {
+      "no": 20,
+      "name": "e-Invoice Code / Number",
+      "category": "Invoice details",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 47,
+      "description": "Document reference number used by Supplier for internal tracking purpose (e.g., INV12345, CN23456, DN34567)"
+    },
+    {
+      "no": 21,
+      "name": "Original e-Invoice Reference Number",
+      "category": "Invoice details",
+      "status": "conditional",
+      "condition": "Mandatory, where applicable",
+      "applies_to": "all",
+      "page": 47,
+      "description": "IRBM Unique Identifier Number of original invoice / document that is being affected / adjusted. Applicable where a debit note, credit note or refund note e-Invoice is issued"
+    },
+    {
+      "no": 22,
+      "name": "e-Invoice Date and Time",
+      "category": "Invoice details",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 47,
+      "description": "Date and time of issuance of the e-Invoice *Note that the date and time must be the current date and time"
+    },
+    {
+      "no": 23,
+      "name": "Issuer's Digital Signature",
+      "category": "Invoice details",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 48,
+      "description": "Anelectronic signature to ensure integrity and non-repudiation of documents. The e-Invoice shall be signed using issuer's digital certificate. In the event where taxpayers utilise the services of service provider, the e-Invoice shall be signed using service provider's digital certificate. Please refer to the SDK for more details on digital certificate."
+    },
+    {
+      "no": 24,
+      "name": "Invoice Currency Code",
+      "category": "Invoice details",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 48,
+      "description": "Specific currency that is used to represent the monetary value stated in the e-Invoice"
+    },
+    {
+      "no": 25,
+      "name": "Currency Exchange Rate",
+      "category": "Invoice details",
+      "status": "conditional",
+      "condition": "Mandatory, where applicable",
+      "applies_to": "all",
+      "page": 48,
+      "description": "Rate at which non-Malaysian currency will be converted into Malaysian Ringgit"
+    },
+    {
+      "no": 26,
+      "name": "Frequency of Billing",
+      "category": "Invoice details",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 48,
+      "description": "Frequency of the invoice (e.g., Daily, Weekly, Biweekly, Monthly, Bimonthly, Quarterly, Half-yearly, Yearly, Others / Not Applicable)"
+    },
+    {
+      "no": 27,
+      "name": "Billing Period",
+      "category": "Invoice details",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 48,
+      "description": "Interval of the transaction (e.g., 2025-01-01 – 2025-01-31)"
+    },
+    {
+      "no": 28,
+      "name": "Classification",
+      "category": "Products / services",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 48,
+      "description": "Category of products or services being billed as a result of a commercial transaction (e.g., general expenses, medical expenses, donations, self-billed e-Invoice, etc.)"
+    },
+    {
+      "no": 29,
+      "name": "Description of Product or Service",
+      "category": "Products / services",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 49,
+      "description": "Details of products or services being billed as a result of a commercial transaction"
+    },
+    {
+      "no": 30,
+      "name": "Unit Price",
+      "category": "Products / services",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 49,
+      "description": "Price assigned to a single unit of a product or service"
+    },
+    {
+      "no": 31,
+      "name": "Tax Type",
+      "category": "Products / services",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 49,
+      "description": "Type of taxes that will be applicable (e.g., sales tax, service tax, tourism tax, etc.), applicable for both line item and invoice level"
+    },
+    {
+      "no": 32,
+      "name": "Tax Rate",
+      "category": "Products / services",
+      "status": "conditional",
+      "condition": "Mandatory, where applicable",
+      "applies_to": "all",
+      "page": 49,
+      "description": "The appropriate tax rate (be it in the form of percentage (%) or prevailing specified rate) that is applicable"
+    },
+    {
+      "no": 33,
+      "name": "Tax Amount",
+      "category": "Products / services",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 49,
+      "description": "The amount of tax payable, applicable for both line item and invoice level"
+    },
+    {
+      "no": 34,
+      "name": "Details of Tax Exemption",
+      "category": "Products / services",
+      "status": "conditional",
+      "condition": "Mandatory if tax exemption is applicable",
+      "applies_to": "all",
+      "page": 49,
+      "description": "Description of tax exemption applicable (e.g., Buyer's sales tax exemption certificate number, special exemption as per gazette orders, etc.)"
+    },
+    {
+      "no": 35,
+      "name": "Amount Exempted from Tax",
+      "category": "Products / services",
+      "status": "conditional",
+      "condition": "Mandatory if tax exemption is applicable",
+      "applies_to": "all",
+      "page": 49,
+      "description": "Total amount of tax exempted for sales tax or service tax purposes"
+    },
+    {
+      "no": 36,
+      "name": "Subtotal",
+      "category": "Products / services",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 49,
+      "description": "Amount of each individual item/ service within the invoice, excluding any taxes, charges or discounts, applicable for line item only"
+    },
+    {
+      "no": 37,
+      "name": "Total Excluding Tax",
+      "category": "Products / services",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 50,
+      "description": "Sum of amount payable (inclusive of applicable discounts and charges), excluding any applicable taxes (e.g., sales tax, service tax). This data field is applicable for both line item and invoice level."
+    },
+    {
+      "no": 38,
+      "name": "Total Including Tax",
+      "category": "Products / services",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 50,
+      "description": "Sum of amount payable inclusive of total taxes chargeable (e.g., sales tax, service tax), applicable for invoice level only"
+    },
+    {
+      "no": 39,
+      "name": "Total Net Amount",
+      "category": "Products / services",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 50,
+      "description": "Sum of total amount payable (inclusive of applicable line item and invoice level discounts and charges), excluding any applicable taxes (e.g., sales tax, service tax). This data field is applicable for invoice level only."
+    },
+    {
+      "no": 40,
+      "name": "Total Payable Amount",
+      "category": "Products / services",
+      "status": "mandatory",
+      "condition": null,
+      "applies_to": "all",
+      "page": 50,
+      "description": "Sum of amount payable (inclusive of total taxes chargeable and any rounding adjustment) excluding any amount paid in advance, applicable at invoice level only"
+    },
+    {
+      "no": 41,
+      "name": "Rounding Amount",
+      "category": "Products / services",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 50,
+      "description": "Rounding amount added to the amount payable, applicable at invoice level only"
+    },
+    {
+      "no": 42,
+      "name": "Total Taxable Amount Per Tax Type",
+      "category": "Products / services",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 50,
+      "description": "Sum of amount chargeable for each tax type, applicable for invoice level only"
+    },
+    {
+      "no": 43,
+      "name": "Quantity",
+      "category": "Products / services",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 50,
+      "description": "Number of units of a particular product or service in a commercial transaction"
+    },
+    {
+      "no": 44,
+      "name": "Measurement",
+      "category": "Products / services",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 51,
+      "description": "Standard unit or system used to measure the product or service"
+    },
+    {
+      "no": 45,
+      "name": "Discount Rate",
+      "category": "Products / services",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 51,
+      "description": "Percentage of deduction from the original price of a product or service, applicable for line level and invoice level"
+    },
+    {
+      "no": 46,
+      "name": "Discount Amount",
+      "category": "Products / services",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 51,
+      "description": "Amount deducted from the original price of a product or service, applicable for line level and invoice level"
+    },
+    {
+      "no": 47,
+      "name": "Fee / Charge Rate",
+      "category": "Products / services",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 51,
+      "description": "Charge associated with the product or service (be it in the form of percentage (%) or prevailing specified rate), applicable for both line item and invoice level"
+    },
+    {
+      "no": 48,
+      "name": "Fee / Charge Amount",
+      "category": "Products / services",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 51,
+      "description": "Charge associated with the product or service, applicable for both line item and invoice level"
+    },
+    {
+      "no": 49,
+      "name": "Payment Mode",
+      "category": "Payment info",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 51,
+      "description": "Chosen mechanism through which funds are transferred from buyer to supplier (e.g., cash, cheque, bank transfer, credit card, debit card, e-Wallet / Digital Wallet, etc.)"
+    },
+    {
+      "no": 50,
+      "name": "Supplier's Bank Account Number",
+      "category": "Payment info",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 51,
+      "description": "The Supplier's bank account number to facilitate payment by Buyer"
+    },
+    {
+      "no": 51,
+      "name": "Payment Terms",
+      "category": "Payment info",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 52,
+      "description": "Anagreed-upon payment terms and conditions e.g., timing and method of payment"
+    },
+    {
+      "no": 52,
+      "name": "Prepayment Amount",
+      "category": "Payment info",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 52,
+      "description": "Monetary value that is prepaid by the Buyer in order to fulfill the financial obligation"
+    },
+    {
+      "no": 53,
+      "name": "Prepayment Date",
+      "category": "Payment info",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 52,
+      "description": "Date of prepayment received"
+    },
+    {
+      "no": 54,
+      "name": "Prepayment Reference Number",
+      "category": "Payment info",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 52,
+      "description": "Unique identifier assigned to trace prepayment"
+    },
+    {
+      "no": 55,
+      "name": "Bill Reference Number",
+      "category": "Payment info",
+      "status": "optional",
+      "condition": null,
+      "applies_to": "all",
+      "page": 52,
+      "description": "Supplier's internal billing reference number to facilitate payment from Buyer"
+    }
+  ]
+}

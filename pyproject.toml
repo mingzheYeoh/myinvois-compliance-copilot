@@ -14,6 +14,7 @@ dependencies = [
     "langchain-openai>=1.6.0",
     "langsmith>=0.12.1",
     "pydantic>=2.13.5",
+    "langgraph>=1.2.11",
 ]
 
 [dependency-groups]
