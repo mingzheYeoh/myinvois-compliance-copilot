@@ -1,0 +1,32 @@
+[project]
+name = "myinvois-compliance-copilot"
+version = "0.1.0"
+description = "Agentic RAG assistant for Malaysian LHDN e-Invoice (MyInvois) compliance."
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "pdfplumber>=0.11",
+    "sentence-transformers>=3.0",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.6", "pytest>=8.0"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/app"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

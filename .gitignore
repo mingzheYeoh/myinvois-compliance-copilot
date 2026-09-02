@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.pytest_cache/
+.ruff_cache/
+.hf_cache/
+
+# Source PDFs are large and re-downloadable; manifest.json IS tracked.
+data/raw/**/*.pdf
