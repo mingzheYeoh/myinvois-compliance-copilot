@@ -145,12 +145,16 @@
 - id: q12
   question: Do I need to issue an e-Invoice when my company distributes dividends?
   expected_route: applicability
-  expected_sections: ["Guideline v4.8 §1.6.7"]
+  expected_sections: ["Specific Guideline v4.8 §11.1.2", "Specific Guideline v4.8 §11.1.4"]
   expected_facts: ["dividend"]
   must_not_contain: []
   why: >-
     Guideline §1.6.7(d), p16: not required for "distribution of dividend in
     specific circumstances", which cross-refers to Specific Guideline Section 11.
+    Those circumstances are §11.1.2 (payers exempt from issuing) and §11.1.4
+    (dividends in scope), so citing §11 IS citing the operative rule; §1.6.7
+    delegates the detail and is acceptable but not required, because precedence
+    governs conflicts between documents, not which one an answer cites.
     Note §8.3(c) requires a self-billed e-Invoice for profit distribution outside
     those circumstances, so the answer should be qualified, not a flat "no".
 
