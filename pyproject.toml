@@ -6,6 +6,7 @@ requires-python = ">=3.11,<3.12"
 dependencies = [
     "pdfplumber>=0.11",
     "sentence-transformers>=3.0",
+    "torch>=2.13",
     "psycopg[binary]>=3.2",
     "pgvector>=0.3",
     "python-dotenv>=1.0",
@@ -43,3 +44,15 @@ packages = ["src/app"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# Torch ships CUDA by default on Linux: 43 nvidia-* packages, ~2.5GB, none of
+# which a bge-small embedding on a 1-vCPU Container App will ever call. Pinning
+# the CPU index here rather than in the Dockerfile keeps the lock, CI and the
+# image resolving the same torch.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }

@@ -1,0 +1,18 @@
+.git/
+.venv/
+.env
+*.bak
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+.ruff_cache/
+# The 6.8MB of source PDFs are ingestion-time only, but manifest.json is NOT:
+# retriever.latest_versions() reads it to build the per-document version filter
+# on every query. Excluding the whole directory made every RAG call raise, and
+# the only symptom was /health reporting an empty guideline_versions.
+data/raw/*.pdf
+data/raw/archive/
+data/raw/translate/
+data/golden/
+tests/
+deploy/

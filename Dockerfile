@@ -1,23 +1,64 @@
-FROM python:3.11-slim
+# syntax=docker/dockerfile:1
 
-# uv gives us the same locked resolution locally and in CI.
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# ---------- build ----------
+# The builder carries uv, the compiler toolchain and the HF download cache; none
+# of that ships. Only the resolved venv and the baked model cross the stage line.
+FROM python:3.11-slim AS build
+
+COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /usr/local/bin/uv
 
 WORKDIR /app
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy HF_HOME=/opt/hf
+# The HF progress bar draws block glyphs, which crash `az acr build`'s log
+# streamer on a Windows cp1252 console. Build logs want lines, not animation.
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy HF_HOME=/opt/hf \
+    HF_HUB_DISABLE_PROGRESS_BARS=1
 
-# Dependencies first so code edits don't invalidate the (slow) torch layer.
+# Dependencies first so a code edit does not re-resolve (or re-download) torch.
+# pyproject pins torch to download.pytorch.org/whl/cpu -- see the note there.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-install-project
 
-# Bake the embedding model into the image: Container Apps scales to zero, and
-# a 130MB download on every cold start is not something a user should wait for.
-RUN uv run python -c "\
-from sentence_transformers import SentenceTransformer; \
-SentenceTransformer('BAAI/bge-small-en-v1.5')"
+# Bake the embedding weights (~130MB) into the image. min-replicas 0 means every
+# idle period ends in a cold start, and a model download on that path would put
+# the user behind a Hugging Face round trip before the first token.
+RUN /app/.venv/bin/python -c \
+    "from sentence_transformers import SentenceTransformer; \
+     SentenceTransformer('BAAI/bge-small-en-v1.5')"
 
-COPY src/ src/
-COPY scripts/ scripts/
+# ---------- runtime ----------
+FROM python:3.11-slim
 
-# Day 1 has one runnable entrypoint. Day 8 swaps this for uvicorn.
-CMD ["uv", "run", "python", "scripts/ingest.py"]
+# HF_HUB_OFFLINE turns "the weights are baked in" from an intention into a
+# guarantee: if anything ever tries to fetch at runtime it fails loudly here
+# rather than quietly adding seconds to a cold start in production.
+ENV PATH=/app/.venv/bin:$PATH \
+    PYTHONPATH=/app/src \
+    PYTHONUNBUFFERED=1 \
+    HF_HOME=/opt/hf \
+    HF_HUB_OFFLINE=1 \
+    PORT=8000
+
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin app
+
+WORKDIR /app
+COPY --from=build --chown=app:app /app/.venv /app/.venv
+COPY --from=build --chown=app:app /opt/hf /opt/hf
+# Runtime needs the rule tables, the manifest that pins document versions, and
+# the single-page frontend. The source PDFs and the golden set are
+# ingestion- and test-time only, so they stay out of the image.
+COPY --chown=app:app src/ src/
+COPY --chown=app:app data/rules/ data/rules/
+COPY --chown=app:app data/raw/manifest.json data/raw/
+COPY --chown=app:app static/ static/
+
+USER app
+EXPOSE 8000
+
+# /health touches Postgres but never the LLM, so a failing check means the
+# container is genuinely unwell -- it cannot be tripped by a spent token budget.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request,sys; \
+        sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', \
+        timeout=4).status == 200 else 1)"
+
+CMD ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
