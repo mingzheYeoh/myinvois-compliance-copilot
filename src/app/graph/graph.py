@@ -204,11 +204,17 @@ APPLICABILITY_KW = re.compile(
     re.I)
 # A JSON-ish object with at least one quoted key is invoice data, not prose.
 INVOICE_BLOCK = re.compile(r"\{[^{}]*[\"'][^\"']+[\"']\s*:", re.S)
+# Day 7 q08: the 20b router sent "what are the mandatory fields" to general_qa,
+# which answered from §4.0 prose instead of the deterministic Appendix 1 table.
+# The phrasing is unambiguous, so it does not need a model to classify it.
+FIELD_LIST_KW = re.compile(r"\b(?:mandatory|which|required) fields\b", re.I)
 
 
 def pre_route(question: str) -> str | None:
     """Route without an LLM where the wording is decisive. None = ask the model."""
     if INVOICE_BLOCK.search(question):
+        return "field_check"
+    if FIELD_LIST_KW.search(question):
         return "field_check"
     if APPLICABILITY_KW.search(question):
         return "applicability"

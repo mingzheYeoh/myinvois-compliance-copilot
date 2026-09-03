@@ -6,9 +6,11 @@ checked against the chunk it claims to come from.
 
 from __future__ import annotations
 
+import contextlib
 import os
 from operator import itemgetter
 
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
@@ -57,6 +59,33 @@ class Busy(RuntimeError):
     'busy, try again in a moment' message, never as a stack trace."""
 
 
+class _Meter(BaseCallbackHandler):
+    """Charge every LLM response to the shared daily budget.
+
+    This used to live in the /chat handler, so only HTTP traffic was metered.
+    On Day 7 the golden set spent Groq's whole 200,000 TPD while our own
+    counter read 10,943/150,000: scripts went straight past the guard that
+    exists so the user sees our quota message rather than the provider's 429.
+    Tokens are produced here, so they are counted here, whatever the caller.
+    """
+
+    def on_llm_end(self, response, **kwargs) -> None:
+        total = sum(
+            (getattr(g.message, "usage_metadata", None) or {}).get("total_tokens", 0)
+            for gen in response.generations for g in gen if hasattr(g, "message")
+        )
+        if not total:
+            return
+        from app.budget import spend
+        # Metering is bookkeeping: a budget-table hiccup must not fail an answer
+        # the user already paid for. /health surfaces a broken DB separately.
+        with contextlib.suppress(Exception):
+            spend(total)
+
+
+METER = _Meter()
+
+
 def get_llm(model: str | None = None, small: bool = False):
     """One place the provider is chosen. LLM_PROVIDER=groq|azure, groq by default.
 
@@ -83,7 +112,8 @@ def get_llm(model: str | None = None, small: bool = False):
             name = os.getenv("GROQ_SMALL_MODEL") or chosen_model(small=True)
         else:
             name = os.getenv("GROQ_MODEL") or chosen_model()
-        return ChatGroq(model=name, temperature=0, max_retries=MAX_RETRIES)
+        return ChatGroq(model=name, temperature=0, max_retries=MAX_RETRIES,
+                        callbacks=[METER])
     if provider == "azure":
         from langchain_openai import AzureChatOpenAI
 
@@ -92,6 +122,7 @@ def get_llm(model: str | None = None, small: bool = False):
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
             temperature=0,
             max_retries=MAX_RETRIES,
+            callbacks=[METER],
         )
     raise ValueError(f"LLM_PROVIDER must be 'groq' or 'azure', got {provider!r}")
 

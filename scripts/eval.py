@@ -197,7 +197,6 @@ def run_case(graph, case: dict) -> Result:
 
 
 def run_all(cases: list[dict], graph=None) -> list[Result]:
-    from app import budget
     from app.graph.graph import build_graph
 
     graph = graph or build_graph()
@@ -213,10 +212,6 @@ def run_all(cases: list[dict], graph=None) -> list[Result]:
                                       skipped["expected_route"],
                                       problems=["not run: daily token quota gone"]))
             return results
-        # Scripts bypass the API, so charge the shared budget here too -- otherwise
-        # the counter that is supposed to stop us before Groq does never moves.
-        if res.tokens:
-            budget.spend(res.tokens)
         # flush: stdout is block-buffered when redirected to a file, and a run
         # this slow is unwatchable if the table only appears at the end.
         print(f"  {res.id} {'PASS' if res.ok else 'FAIL'}  ({res.tokens} tok)", flush=True)

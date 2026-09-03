@@ -131,10 +131,9 @@ def chat(request: Request, body: ChatIn) -> JSONResponse:
                               "a moment.")
         raise
 
-    # Charge the budget from the providers' own usage metadata, per model.
+    # get_llm() meters every call at the client, so nothing is charged here.
+    # This handler only reports what the run cost, per model.
     spent = sum(u.get("total_tokens", 0) for u in usage.usage_metadata.values())
-    if spent:
-        budget.spend(spent)
 
     answer = out.get("answer", "")
     citations = [

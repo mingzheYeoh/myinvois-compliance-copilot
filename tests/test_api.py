@@ -185,3 +185,16 @@ def test_provider_daily_cap_is_not_reported_as_transient_busy(client, monkeypatc
     assert "quota" in r.json()["error"].lower()
     assert "moment" not in r.json()["error"].lower()
     assert r.json()["resets_at"]
+
+
+def test_a_mandatory_fields_question_pre_routes_to_field_check():
+    """Day 7 q08: the 20b router sent this to general_qa, which answered from
+    §4.0 prose instead of the deterministic Appendix 1 table. The field-list
+    check runs before the applicability keywords, so "which fields are required
+    for a self-billed e-Invoice" is a field question, not a timeline one."""
+    from app.graph.graph import pre_route
+
+    assert pre_route("What are the mandatory fields in an e-Invoice?") == "field_check"
+    assert pre_route("Which fields are required for a self-billed e-Invoice?") == "field_check"
+    assert pre_route("How long is the relaxation period for Phase 4?") == "applicability"
+    assert pre_route("What is an e-Invoice?") is None

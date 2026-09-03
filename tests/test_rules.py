@@ -361,3 +361,31 @@ def test_unlisted_kind_is_not_silently_treated_as_exempt():
 def test_scope_distinguishes_the_two_kinds_of_determination():
     assert determine(BusinessProfile()).scope == "business"
     assert exempt_transaction("zakat").scope == "transaction"
+
+
+# --- Day 7: conclude from what was given before asking for more -------------
+
+def test_ownership_alone_answers_1_6_5_without_demanding_a_turnover_figure():
+    """Day 7 q14. §1.6.5 states outright that the exemption is not inherited,
+    and needs no other field. The engine used to reply with a request for
+    turnover and a commencement year, answering a question nobody asked."""
+    d = determine(BusinessProfile(owned_by_exempt_person=True), version="4.8")
+    assert d.missing == []
+    assert any("1.6.5" in r.section for r in d.reasons)
+
+
+def test_turnover_alone_exempts_without_the_commencement_year():
+    """Latent since Day 3: §1.6.1(e) turns on turnover only, but the engine
+    demanded commencement_year before it would apply it."""
+    d = determine(BusinessProfile(annual_turnover=1_500_000,
+                                  has_related_company_over_threshold=False),
+                  version="4.8")
+    assert d.required is False and d.missing == []
+
+
+def test_over_the_threshold_without_a_year_still_says_required():
+    """Not exempt is a conclusion in its own right; only the DATE needs §1.5."""
+    d = determine(BusinessProfile(annual_turnover=30_000_000), version="4.8")
+    assert d.required is True
+    assert d.implementation_date is None
+    assert d.missing == ["commencement_year"]

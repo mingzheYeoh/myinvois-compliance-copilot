@@ -1,10 +1,11 @@
 """Deterministic e-Invoice compliance rules. No LLM, no retrieval, no I/O.
 
 Every conclusion carries the section it came from, and anything the profile does
-not say is reported in `missing` rather than assumed. A determination with a
-non-empty `missing` list has `required=None`: the engine declines to answer
-rather than guess, because guessing an implementation date is the one failure
-this project cannot ship.
+not say is reported in `missing` rather than assumed. A determination reports in `missing`
+only what it could not conclude without: the engine declines to guess an
+implementation date, but it still states what already follows (exempt on
+turnover alone, or required-but-undated), because asking for input we do not
+need is how a question the user did ask goes unanswered.
 """
 
 from __future__ import annotations
@@ -169,20 +170,32 @@ def determine(
 
     _consolidation(transaction, profile, p, out)
 
-    if profile.annual_turnover is None:
-        out.missing.append("annual_turnover")
-    if profile.commencement_year is None:
-        out.missing.append("commencement_year")
-    if out.missing:
+    turnover = profile.annual_turnover
+    threshold = p["exemption_threshold"]
+
+    # A conclusion that already follows from what we were given beats a request
+    # for more input. §1.6.5 settles ownership on its own: the exemption is not
+    # inherited. When ownership is all the user told us, that IS the answer, and
+    # asking for a turnover figure answers a question they did not ask.
+    if profile.owned_by_exempt_person:
         out.reasons.append(Reason(
-            text="Cannot determine the implementation date without "
-                 + " and ".join(out.missing) + ".",
+            text="Being owned by a person who is exempt under §1.6.1(a)-(d) does not "
+                 "pass that exemption on: the entity is assessed in its own right and "
+                 "implements e-Invoice on the §1.5 timeline, unless its own annual "
+                 "turnover exempts it under §1.6.1(e).",
+            section=p["owned_entity_ref"], basis="guideline"))
+        if turnover is None:
+            return out
+
+    # The §1.6.1(e) exemption test needs turnover alone. The commencement year
+    # matters only AFTER that test fails, to place the taxpayer on the §1.5
+    # timeline -- demanding it up front blocked answers that already followed.
+    if turnover is None:
+        out.missing.append("annual_turnover")
+        out.reasons.append(Reason(
+            text="Cannot determine the implementation date without annual_turnover.",
             section=f"Guideline v{p['guideline_version']} §1.5", basis="guideline"))
         return out
-
-    turnover = profile.annual_turnover
-    year = profile.commencement_year
-    threshold = p["exemption_threshold"]
 
     # --- Exemption (§1.6.1(e)), and its carve-outs (§1.6.10, v4.8 only) -------
     if turnover < threshold:
@@ -225,13 +238,19 @@ def determine(
             return out
 
     # --- Not exempt: find the implementation date ----------------------------
+    # Not exempt is itself a conclusion: an e-Invoice IS required. Only the date
+    # needs the commencement year, so report that and keep the answer we have.
     out.required = True
-    if profile.owned_by_exempt_person:
+    if profile.commencement_year is None:
+        out.missing.append("commencement_year")
         out.reasons.append(Reason(
-            text="Being owned by a person who is exempt under §1.6.1 does not pass "
-                 "that exemption on: an entity owned by one of those persons "
-                 "implements e-Invoice on the §1.5 timeline in its own right.",
-            section=p["owned_entity_ref"], basis="guideline"))
+            text="Turnover does not meet the exemption, so an e-Invoice is required. "
+                 "§1.5 places a taxpayer on the implementation timeline by the year "
+                 "the business commenced, so that year is needed before a date can "
+                 "be given.",
+            section=f"Guideline v{p['guideline_version']} §1.5", basis="guideline"))
+        return out
+    year = profile.commencement_year
 
     if year <= 2022:
         fy22 = prorate_fy2022(profile)
