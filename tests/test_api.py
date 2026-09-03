@@ -198,3 +198,14 @@ def test_a_mandatory_fields_question_pre_routes_to_field_check():
     assert pre_route("Which fields are required for a self-billed e-Invoice?") == "field_check"
     assert pre_route("How long is the relaxation period for Phase 4?") == "applicability"
     assert pre_route("What is an e-Invoice?") is None
+
+
+def test_determination_dates_are_rendered_the_way_the_guidelines_write_them():
+    """The engine emits ISO dates and the model quotes the block close to
+    verbatim, so "the implementation date is 2025-01-01" reached the user.
+    Page ranges and version numbers must survive untouched."""
+    from app.graph.graph import _dates_as_prose
+
+    assert _dates_as_prose("date is 2025-01-01.") == "date is 1 January 2025."
+    assert _dates_as_prose("until 2027-12-31") == "until 31 December 2027"
+    assert _dates_as_prose("p32-33 v4.8 row 7") == "p32-33 v4.8 row 7"

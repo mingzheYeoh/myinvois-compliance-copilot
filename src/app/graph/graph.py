@@ -88,6 +88,20 @@ class Rewrite(BaseModel):
     query: str = Field(description="A reformulated retrieval query")
 
 
+class InvoiceField(BaseModel):
+    """One name/value pair off the invoice.
+
+    A free-form dict[str, str] would be the obvious shape and is not portable:
+    OpenAI's structured-output schema subset has no additionalProperties, so
+    Azure rejects the request outright with "'required' is required to be
+    supplied and to be an array including every key in properties". A list of
+    pairs says the same thing in the subset every provider supports.
+    """
+
+    name: str = Field(description="Field name, copied verbatim")
+    value: str = Field(description="Field value, copied verbatim")
+
+
 class InvoiceExtract(BaseModel):
     """Invoice the user pasted. `is_invoice_data` is False when they wrote prose
     about invoices rather than supplying one -- we ask instead of inventing."""
@@ -99,9 +113,9 @@ class InvoiceExtract(BaseModel):
         default=False,
         description="True if the user is asking WHICH fields are required, rather "
                     "than supplying an invoice to check")
-    fields: dict[str, str] = Field(
-        default_factory=dict,
-        description="Field name -> value, copied verbatim. Never invent a value.")
+    fields: list[InvoiceField] = Field(
+        default_factory=list,
+        description="Every field on the invoice, copied verbatim. Never invent one.")
 
 
 class Extraction(BaseModel):
@@ -176,16 +190,19 @@ not yet been updated."""
 GENERATE_PROMPT = ChatPromptTemplate.from_messages([("system", """\
 You are a Malaysian e-Invoice (LHDN MyInvois) compliance assistant.
 
-Answer ONLY from the context below. Every factual sentence carries a citation
-copied verbatim from the context block it came from:
+Answer ONLY from the material below: the deterministic block, where one is
+present, and the numbered context. Every factual sentence carries a citation
+copied verbatim from the block or the context entry it came from:
 
     [<doc> v<version> §<section>, p<page>]
 
 {precedence}
 
 Never invent, guess or reformat a citation, and never cite a section you were
-not given. If the context does not answer the question, reply exactly
-"Not covered in the guidelines." and stop.
+not given. If NEITHER the deterministic block below NOR the context answers the
+question, reply exactly "Not covered in the guidelines." and stop. A
+deterministic block is itself an answer: report it even when the context is
+empty, using the citations it carries.
 {determination}
 Context:
 {context}"""),
@@ -309,9 +326,10 @@ Read the user's message and decide which of three things it is.
 def validate_fields_node(state: State) -> State:
     got = structured(InvoiceExtract, small=True).invoke(
         INVOICE_PROMPT.format_messages(question=state["question"]))
-    if got.is_invoice_data and got.fields:
-        return {"field_report": validate_fields(got.fields).model_dump(),
-                "invoice": got.fields}
+    fields = {f.name: f.value for f in got.fields}
+    if got.is_invoice_data and fields:
+        return {"field_report": validate_fields(fields).model_dump(),
+                "invoice": fields}
     if got.asks_for_field_list:
         return {"field_report": {
             "list_request": True,
@@ -320,6 +338,25 @@ def validate_fields_node(state: State) -> State:
             "optional_count": len(field_list("optional")),
         }}
     return {"field_report": {"no_invoice": True}}
+
+
+ISO_DATE = re.compile(r"(?<![-\d])(\d{4})-(\d{2})-(\d{2})(?![-\d])")
+
+
+def _dates_as_prose(text: str) -> str:
+    """Rewrite the engine's ISO dates the way the guidelines write them.
+
+    The model quotes the determination block close to verbatim, so "the
+    implementation date is 2025-01-01" is what reached the user, where the
+    Guideline says "1 January 2025". Doing it here, on the rendered block,
+    catches the reasons and the reference facts in one pass instead of at every
+    date f-string in the rule engine.
+    """
+    def prose(m: re.Match) -> str:
+        d = date(int(m[1]), int(m[2]), int(m[3]))
+        return f"{d.day} {d:%B %Y}"
+
+    return ISO_DATE.sub(prose, text)
 
 
 def _determination_block(d: dict[str, Any]) -> tuple[str, str]:
@@ -355,7 +392,7 @@ def _determination_block(d: dict[str, Any]) -> tuple[str, str]:
                      'directly."')
     query = " ".join(dict.fromkeys(
         r["section"] for r in [*d.get("reasons", []), *d.get("facts", [])]))
-    return "\n".join(lines) + "\n", query
+    return _dates_as_prose("\n".join(lines) + "\n"), query
 
 
 ASK_FOR = {
@@ -375,7 +412,8 @@ ASK_FOR = {
 def _field_block(rep: dict[str, Any]) -> str:
     if rep.get("list_request"):
         lines = ["", "APPENDIX 1 FIELD LIST (deterministic, read from the published",
-                 "table -- reproduce it, do not add or drop entries).",
+                 "table -- reproduce it, do not add or drop entries). This answers",
+                 "the question in full: never reply \"Not covered in the guidelines\".",
                  f"Mandatory ({len(rep['mandatory'])}):"]
         for f in rep["mandatory"]:
             lines.append(f"  {f['no']}. {f['name']} - {f['category']} [{f['section']}]")
@@ -390,8 +428,12 @@ def _field_block(rep: dict[str, Any]) -> str:
         return ("\nThe user did not supply invoice data. Ask them to paste the "
                 "invoice as JSON or as field/value pairs. Do NOT list the fields "
                 "from memory and do NOT guess what their invoice contains.\n")
+    # field_check never retrieves, so `context` is empty and the abstention rule
+    # was the only instruction that matched. gpt-5.4-mini read it literally and
+    # answered "Not covered in the guidelines." over a complete validation report.
     lines = ["", "FIELD VALIDATION RESULT (deterministic, from Appendix 1 -- report it,",
-             f"do not recompute it). {rep['checked']} fields checked; "
+             f"do not recompute it, and never reply \"Not covered in the "
+             f"guidelines\"). {rep['checked']} fields checked; "
              f"{len(rep['present'])} supplied.",
              f"  valid: {rep['valid']}"]
     if rep["missing_mandatory"]:

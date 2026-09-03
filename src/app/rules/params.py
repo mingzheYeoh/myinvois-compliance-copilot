@@ -64,7 +64,7 @@ PARAMS: dict[str, dict[str, Any]] = {
         # operation commencement date; if the first year's turnover is expected
         # to be less than RM3,000,000, the date is 1 January in the second year
         # following the year turnover reached RM3,000,000.
-        "new_business_2026_ref": "Guideline v4.8 §1.5, p13-14",
+        "new_business_2026_ref": "Guideline v4.8 §1.5, p13",
         "late_crossing_offset_years": 2,  # "second year following" -> year + 2
         "late_crossing_ref": "Guideline v4.8 §1.5, p14",
         # Specific Guideline s3.7.2 Table 3.6 row 7, p33: "All industries - Any
@@ -108,14 +108,14 @@ PARAMS: dict[str, dict[str, Any]] = {
             "donation": "Donations or contributions received, as specified in Question "
                         "1, Part A of the e-Invoice FAQs for Donations or Contributions.",
         },
-        "exempt_transaction_ref": "Guideline v4.8 §1.6.7, p16-17",
+        "exempt_transaction_ref": "Guideline v4.8 §1.6.7, p16",
         # §1.6.5, p16: the §1.6.1 exemption belongs to the listed persons only.
         # An entity owned by one of them does not inherit it and implements per
         # the §1.5 timeline. Read as NOT destroying the entity's own §1.6.1(e)
         # turnover exemption -- otherwise §1.6.10(a), which deliberately
         # requires a NON-INDIVIDUAL shareholder at RM3m, would be redundant.
         "owned_entity_ref": "Guideline v4.8 §1.6.5, p16",
-        "no_consolidation_ref": "Specific Guideline v4.8 §3.7.2 Table 3.6, p32-33",
+        "no_consolidation_ref": "Specific Guideline v4.8 §3.7.2 Table 3.6, p32",
     },
     "4.6": {
         "guideline_version": "4.6",
@@ -173,14 +173,14 @@ PARAMS: dict[str, dict[str, Any]] = {
             "donation": "Donations or contributions received, as specified in Question "
                         "1, Part A of the e-Invoice FAQs for Donations or Contributions.",
         },
-        "exempt_transaction_ref": "Guideline v4.6 §1.6.7, p16-17",
+        "exempt_transaction_ref": "Guideline v4.6 §1.6.7, p16",
         # §1.6.5, p16: the §1.6.1 exemption belongs to the listed persons only.
         # An entity owned by one of them does not inherit it and implements per
         # the §1.5 timeline. Read as NOT destroying the entity's own §1.6.1(e)
         # turnover exemption -- otherwise §1.6.10(a), which deliberately
         # requires a NON-INDIVIDUAL shareholder at RM3m, would be redundant.
         "owned_entity_ref": "Guideline v4.6 §1.6.5, p16",
-        "no_consolidation_ref": "Specific Guideline v4.7 §3.7.2 Table 3.6, p32-33",
+        "no_consolidation_ref": "Specific Guideline v4.7 §3.7.2 Table 3.6, p32",
     },
 }
 

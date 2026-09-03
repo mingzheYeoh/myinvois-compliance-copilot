@@ -415,6 +415,24 @@ def reference_facts(version: str = "4.8") -> list[Reason]:
              f"consolidated e-Invoice and needs its own e-Invoice, effective "
              f"{p['individual_invoice_from']}.",
         section=p["individual_invoice_ref"], basis="specific"))
+    # Both tables below were already in params, and neither was citable without a
+    # profile. "Which industries can never consolidate?" and "do I e-Invoice a
+    # dividend?" then had to be answered from retrieved prose, and Day 8 they
+    # were: the answers came back citing §16.2 and §11 instead of the tables.
+    facts.append(Reason(
+        text="Consolidated e-Invoice is never allowed, at any value, for these "
+             "activities: "
+             + "; ".join(p["no_consolidation_industries"].values()) + ".",
+        section=p["no_consolidation_ref"], basis="specific"))
+    # One rule, one fact -- as with the phase and relaxation rows. Rolled into a
+    # single blob the dividend clause was buried, and its own text ("see Section
+    # 11 of the e-Invoice Specific Guideline") sent the answer off to cite the
+    # cross-reference instead of the Guideline section that grants the exemption.
+    for kind in p["exempt_transaction_types"].values():
+        facts.append(Reason(
+            text=f"No e-Invoice (including self-billed e-Invoice) is required for "
+                 f"this transaction type: {kind}",
+            section=p["exempt_transaction_ref"], basis="guideline"))
     return facts
 
 

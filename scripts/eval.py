@@ -16,6 +16,7 @@ import argparse
 import os
 import random
 import re
+import statistics
 import sys
 import time
 from dataclasses import dataclass, field
@@ -49,6 +50,9 @@ GOLDEN = ROOT / "data" / "golden" / "questions.yaml"
 TPM = int(os.getenv("GROQ_TPM", "8000"))
 REFILL = TPM / 60.0
 _debt = 0.0
+# The 8K bucket is Groq's. Pacing an Azure run against it would add ~19s of
+# sleep to every case for a ceiling that is not there.
+PACED = os.getenv("LLM_PROVIDER", "groq").lower() == "groq"
 
 
 def charge(tokens: int) -> None:
@@ -59,7 +63,8 @@ def charge(tokens: int) -> None:
 def pace() -> None:
     """Wait for the token bucket to give back what the last turn took."""
     global _debt
-    if _debt <= 0:
+    if not PACED or _debt <= 0:
+        _debt = 0.0
         return
     wait = _debt / REFILL
     print(f"    [tpm] spent {_debt:.0f} tokens; waiting {wait:.0f}s for the bucket",
@@ -78,6 +83,7 @@ class Result:
     problems: list[str] = field(default_factory=list)
     answer: str = ""
     tokens: int = 0
+    secs: float = 0.0
 
     @property
     def ok(self) -> bool:
@@ -176,6 +182,7 @@ def run_case(graph, case: dict) -> Result:
     res = Result(case["id"], case["question"], case["expected_route"])
     usage = UsageMetadataCallbackHandler()
     out = {}
+    started = time.perf_counter()
     try:
         for turn in case["turns"]:
             pace()
@@ -189,6 +196,10 @@ def run_case(graph, case: dict) -> Result:
     except Exception as exc:
         res.problems.append(f"raised {type(exc).__name__}: {str(exc)[:300]}")
         return res
+    finally:
+        # Wall clock for the whole case, pacing sleeps included -- the number a
+        # user would feel. Groq runs are paced, Azure runs are not.
+        res.secs = time.perf_counter() - started
     res.answer = out.get("answer", "")
     res.actual_route = out.get("intent", "-")
     res.citations = citations(res.answer)
@@ -214,7 +225,8 @@ def run_all(cases: list[dict], graph=None) -> list[Result]:
             return results
         # flush: stdout is block-buffered when redirected to a file, and a run
         # this slow is unwatchable if the table only appears at the end.
-        print(f"  {res.id} {'PASS' if res.ok else 'FAIL'}  ({res.tokens} tok)", flush=True)
+        print(f"  {res.id} {'PASS' if res.ok else 'FAIL'}  "
+              f"({res.tokens} tok, {res.secs:.1f}s)", flush=True)
         results.append(res)
     return results
 
@@ -243,8 +255,15 @@ def table(results: list[Result]) -> None:
             if r.answer:
                 print(f"    answer: {' '.join(r.answer.split())[:300]}")
             print()
+    ran = [r for r in results if r.secs]
     print(f"{len(results) - len(failed)}/{len(results)} passed, "
           f"{sum(r.tokens for r in results)} tokens spent")
+    if ran:
+        print(f"per run: P50 {statistics.median(r.secs for r in ran):.2f}s / "
+              f"{statistics.median(r.tokens for r in ran):.0f} tokens, "
+              f"mean {statistics.mean(r.secs for r in ran):.2f}s / "
+              f"{statistics.mean(r.tokens for r in ran):.0f} tokens "
+              f"over {len(ran)} run(s)")
 
 
 def main() -> int:
@@ -264,10 +283,11 @@ def main() -> int:
         cases = cases[: args.limit]
 
     from app.budget import limit, used
-    from app.rag.chain import get_llm
+    from app.rag.chain import get_llm, llm_name
 
-    print(f"golden set: {len(cases)} case(s)  generate={get_llm().model_name}  "
-          f"small={get_llm(small=True).model_name}  budget={used()}/{limit()}  TPM={TPM}")
+    print(f"golden set: {len(cases)} case(s)  generate={llm_name(get_llm())}  "
+          f"small={llm_name(get_llm(small=True))}  budget={used()}/{limit()}  "
+          f"TPM={TPM}")
     results = run_all(cases)
     table(results)
     return 1 if any(not r.ok for r in results) else 0

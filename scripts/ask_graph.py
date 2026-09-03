@@ -46,9 +46,9 @@ def main() -> int:
     import os
 
     from app.budget import limit, used
-    from app.rag.chain import get_llm
+    from app.rag.chain import get_llm, llm_name
 
-    print(f"models: generate={get_llm().model_name}  structured={get_llm(small=True).model_name}"
+    print(f"models: generate={llm_name(get_llm())}  structured={llm_name(get_llm(small=True))}"
           f"  budget={used()}/{limit()}  DAILY_TOKEN_BUDGET={os.getenv('DAILY_TOKEN_BUDGET')}")
     graph = build_graph()
 

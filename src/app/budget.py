@@ -1,9 +1,18 @@
 """Daily LLM token budget, kept in Postgres so it survives container restarts.
 
-The budget defaults to 150,000 against Groq's 200,000 TPD cap for the gpt-oss
+The default of 150,000 was set against Groq's 200,000 TPD cap for the gpt-oss
 models: we want our own "quota exhausted" message, not Groq's 429 in the middle
-of a graph run. When it is spent, `chosen_model` falls back to compound-mini,
-which has no daily token limit (but only 250 requests/day).
+of a graph run. With Azure primary there is no comparable hard cap, so the same
+number is a COST guard instead -- set DAILY_TOKEN_BUDGET to what a day of this
+service is worth to you.
+
+One counter serves both providers, so an Azure day can lock out the Groq
+fallback. That is deliberate for now (the point is a ceiling on spend, whoever
+serves it) but it is the obvious thing to split if the two ever need separate
+limits.
+
+Since Day 8 every LLM call is charged here from get_llm(), not from the /chat
+handler, so scripts and the API share one ledger.
 """
 
 from __future__ import annotations

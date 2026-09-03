@@ -117,14 +117,51 @@ def get_llm(model: str | None = None, small: bool = False):
     if provider == "azure":
         from langchain_openai import AzureChatOpenAI
 
+        # Only the DEPLOYMENT is named here. The model behind it is Azure's to
+        # change -- pinning "gpt-5.4-mini" in code would mean a redeploy every
+        # time the deployment is repointed, and would lie the moment it was.
+        #
+        # MEASURED against this endpoint: api-version 2024-10-21 (stable GA),
+        # 2025-04-01-preview and the v1 route (base_url=<endpoint>/openai/v1,
+        # no api-version) all serve the deployment and all accept temperature,
+        # reasoning_effort and json_schema structured output. The GA version
+        # wins on the tie -- a preview api-version is a moving target.
+        #
+        # MEASURED: reasoning_effort and temperature are mutually exclusive on
+        # this deployment. Sending both returns 400 "Unsupported value:
+        # 'temperature' does not support 0.0 with this model. Only the default
+        # (1) value is supported." So it is a straight choice, and temperature
+        # wins.
+        #
+        # reasoning_effort="minimal" is the cheaper setting, and nothing in this
+        # graph is a reasoning problem -- the nodes classify, extract, grade and
+        # quote, and the compliance decisions are the rule engine's. But it
+        # forces temperature 1, and at temperature 1 the same question gave two
+        # different compliance answers on consecutive runs. Specific Guideline
+        # §11.1.2 exempts taxpayers not entitled to deduct under s108 "as well
+        # as" taxpayers listed on Bursa Malaysia; one run rendered that as "not
+        # entitled ... AND NOT listed on Bursa" -- an inverted condition, served
+        # with a correct citation. That costs more than the tokens it saved.
+        #
+        # Set AZURE_REASONING_EFFORT to opt back in where determinism is not the
+        # point (bulk classification, a scratch run).
+        effort = os.getenv("AZURE_REASONING_EFFORT", "")
+        sampling = {"reasoning_effort": effort} if effort else {"temperature": 0}
         return AzureChatOpenAI(
             azure_deployment=model or os.environ["AZURE_OPENAI_DEPLOYMENT"],
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
-            temperature=0,
             max_retries=MAX_RETRIES,
             callbacks=[METER],
+            **sampling,
         )
     raise ValueError(f"LLM_PROVIDER must be 'groq' or 'azure', got {provider!r}")
+
+
+def llm_name(llm) -> str:
+    """What to print in a run header. Azure exposes a deployment, not a model:
+    model_name would report langchain's "gpt-3.5-turbo" default, which is false.
+    """
+    return getattr(llm, "deployment_name", None) or getattr(llm, "model_name", "?")
 
 
 def build_chain(k: int = 5):

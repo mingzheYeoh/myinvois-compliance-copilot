@@ -14,7 +14,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import RunnableLambda
 
-from app.graph.graph import InvoiceExtract, build_graph
+from app.graph.graph import InvoiceExtract, InvoiceField, build_graph
 
 TOKENS_PER_CALL = 100
 INVOICE = 'Check this invoice: {"Supplier' + chr(39) + 's Name": "ACME Sdn Bhd"}'
@@ -37,7 +37,9 @@ class FakeChat(BaseChatModel):
     def with_structured_output(self, schema, **kwargs):
         """The call still happens -- only the parsing is faked -- so the tokens
         a structured node spends are still there to be metered."""
-        got = InvoiceExtract(is_invoice_data=True, fields={"Supplier's Name": "ACME"})
+        got = InvoiceExtract(is_invoice_data=True,
+                             fields=[InvoiceField(name="Supplier's Name",
+                                                  value="ACME")])
         return RunnableLambda(lambda x: (self.invoke(x), got)[1])
 
 
