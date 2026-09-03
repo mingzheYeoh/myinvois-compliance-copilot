@@ -134,8 +134,31 @@ def test_health_reports_versions_and_budget(client):
     assert body["budget"]["limit"] == budget.limit()
 
 
+def test_health_reports_degraded_when_versions_empty(client, monkeypatch):
+    monkeypatch.setattr(main, "latest_versions", lambda: ())
+    body = client.get("/health").json()
+    assert body["status"] == "degraded"
+    assert body["guideline_versions"] == {}
+
+
+def test_health_reports_degraded_when_manifest_unreadable(client, monkeypatch):
+    def boom():
+        raise OSError("Manifest unreadable")
+
+    monkeypatch.setattr(main, "latest_versions", boom)
+    body = client.get("/health").json()
+    assert body["status"] == "degraded"
+    assert body["guideline_versions"] == {}
+
+
 def test_index_is_served(client):
     r = client.get("/")
+    assert r.status_code == 200
+    assert "not tax or legal advice" in r.text
+
+
+def test_spa_fallback_serves_index_for_client_routes(client):
+    r = client.get("/check-invoice")
     assert r.status_code == 200
     assert "not tax or legal advice" in r.text
 

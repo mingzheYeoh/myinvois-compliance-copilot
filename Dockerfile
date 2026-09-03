@@ -25,6 +25,16 @@ RUN /app/.venv/bin/python -c \
     "from sentence_transformers import SentenceTransformer; \
      SentenceTransformer('BAAI/bge-small-en-v1.5')"
 
+# ---------- frontend build ----------
+# Build the React + TypeScript frontend bundle with Vite.
+FROM node:22-slim AS frontend
+
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
 # ---------- runtime ----------
 FROM python:3.11-slim
 
@@ -44,12 +54,12 @@ WORKDIR /app
 COPY --from=build --chown=app:app /app/.venv /app/.venv
 COPY --from=build --chown=app:app /opt/hf /opt/hf
 # Runtime needs the rule tables, the manifest that pins document versions, and
-# the single-page frontend. The source PDFs and the golden set are
+# the compiled React frontend. The source PDFs and the golden set are
 # ingestion- and test-time only, so they stay out of the image.
 COPY --chown=app:app src/ src/
 COPY --chown=app:app data/rules/ data/rules/
 COPY --chown=app:app data/raw/manifest.json data/raw/
-COPY --chown=app:app static/ static/
+COPY --from=frontend --chown=app:app /app/src/app/static/ src/app/static/
 
 USER app
 EXPOSE 8000

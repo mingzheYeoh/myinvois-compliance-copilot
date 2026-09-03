@@ -109,6 +109,35 @@ version-parameterised rule engine.
   not implemented.
 - Source PDFs are gitignored (large, re-downloadable); `manifest.json` is tracked.
 
+## Frontend
+
+A mobile-first Single Page Application designed for business owners on mobile devices, built with **Vite**, **React**, and **TypeScript** (zero UI libraries, zero state management libraries).
+
+### Features
+- **Ask Assistant**: Multi-turn chat session with in-memory `thread_id` preservation (supports profile collection flows like Day 4 Q2). Displays route badges (**General**, **Applicability**, **Field Check**), structured guideline citations (`doc`, `version`, `section`, `page`), and callout styling for "confirm with LHDN" notices.
+- **Check Invoice**: Deterministic validation against official IRBM Appendix 1 specifications via `/validate`. Zero LLM token consumption; remains 100% operational when daily token budget is exhausted. Offers both a Quick Form (common fields) and raw JSON editor.
+- **Header & System Health**: Displays active guideline document versions from `/health` and live token budget meter. Handles cold-starts by displaying a "~35s waking up" indicator and polling `/health` until `status == "ok"` before activating the assistant.
+- **Defensive Error Handling**: Client-side character counter prevents exceeding the 2,000 character limit (guarding against HTTP 413); gracefully distinguishes 429 quota exhaustion (displaying exact reset time) from rate-limit throttling; and provides retry buttons without losing typed input on network disruptions.
+
+### Development & Build
+```powershell
+# Run Vite dev server with proxy to FastAPI (port 8000)
+cd frontend
+npm install
+npm run dev
+
+# Compile production bundle into src/app/static/
+npm run build
+```
+
+FastAPI serves the compiled bundle from `src/app/static/` at `/` with an SPA fallback for client routing.
+
+### Docker Multi-Stage Build & Image Size Delta
+`Dockerfile` uses a multi-stage build with `node:22-slim` to compile the frontend assets, which are copied into the Python runtime container:
+- **Previous static asset**: `static/index.html` (5,069 bytes, ~5.0 KB)
+- **New frontend bundle**: `src/app/static/` (179,417 bytes, ~175.2 KB uncompressed; 51.9 KB gzipped)
+- **Runtime image delta**: Net increase of **+174.3 KB** (~0.01% of the total ~1.5 GB image). Node.js and build dependencies are completely discarded across stages.
+
 ## Disclaimer
 
 Informational only. Not tax or legal advice. Verify against the official LHDN documents.

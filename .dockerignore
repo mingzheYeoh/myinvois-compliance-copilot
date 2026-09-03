@@ -16,3 +16,5 @@ data/raw/translate/
 data/golden/
 tests/
 deploy/
+frontend/node_modules/
+frontend/dist/

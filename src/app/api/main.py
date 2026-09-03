@@ -17,11 +17,13 @@ from typing import Any
 import psycopg
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from langchain_core.callbacks import UsageMetadataCallbackHandler
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.staticfiles import StaticFiles
 
 from app import budget
 from app.budget import QuotaExhausted
@@ -38,7 +40,8 @@ load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 # block, and blocking inside an async handler stalls the whole event loop and
 # serialises every other request. FastAPI runs sync handlers in a threadpool.
 MAX_INPUT_CHARS = 2_000
-STATIC = Path(__file__).resolve().parents[3] / "static"
+STATIC = Path(__file__).resolve().parents[1] / "static"
+STATIC.mkdir(parents=True, exist_ok=True)
 CITE = re.compile(r"[\[【]([^\]】]+?) v([^ \]】]+) §([^,\]】]+), ?p(\d+)[\]】]")
 
 @contextlib.asynccontextmanager
@@ -174,7 +177,7 @@ def health() -> JSONResponse:
         versions = dict(s.split(":", 1) for s in latest_versions())
     used = budget.used() if db == "ok" else None
     return JSONResponse({
-        "status": "ok" if db == "ok" else "degraded",
+        "status": "ok" if db == "ok" and bool(versions) else "degraded",
         "guideline_versions": versions,
         "db": db,
         "budget": {"limit": budget.limit(), "used": used,
@@ -182,9 +185,17 @@ def health() -> JSONResponse:
     })
 
 
-@app.get("/")
-def index() -> FileResponse:
-    return FileResponse(STATIC / "index.html")
+class SPAStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope: Any) -> Any:
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404:
+                return await super().get_response("index.html", scope)
+            raise
+
+
+app.mount("/", SPAStaticFiles(directory=STATIC, html=True), name="static")
 
 
 
