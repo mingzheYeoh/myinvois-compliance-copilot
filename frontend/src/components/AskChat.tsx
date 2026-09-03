@@ -162,43 +162,97 @@ export const AskChat: React.FC<AskChatProps> = ({
     return 'General';
   };
 
-  // Render answer text, detecting "confirm with LHDN" line and styling it as quiet callout
-  const renderFormattedAnswer = (text: string) => {
-    const lines = text.split('\n');
-    const elements: React.ReactNode[] = [];
-    let buffer: string[] = [];
+  // Helper: deduplicate bottom citations list
+  const getDedupedCitations = (citations: Citation[]): Citation[] => {
+    const seen = new Set<string>();
+    const result: Citation[] = [];
+    for (const c of citations) {
+      const key = `${c.doc}-${c.version}-${c.section}-${c.page}`.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(c);
+      }
+    }
+    return result;
+  };
 
-    lines.forEach((line, idx) => {
-      const isLhdnNotice = /confirm.*with LHDN/i.test(line);
+  // Helper: parse inline markdown bold and inline citations with deduplication
+  const renderInlineTokens = (text: string, seenCitations: Set<string>): React.ReactNode[] => {
+    // Regex splits on either **bold** or [Citation ...]
+    const TOKEN_REGEX = /(\*\*[^*]+\*\*|\[(?:(?:General\s+)?Guideline|Specific\s+Guideline|FAQ)[^\]]+\])/g;
+    const parts = text.split(TOKEN_REGEX);
 
-      if (isLhdnNotice) {
-        if (buffer.length > 0) {
-          elements.push(
-            <div key={`p-${idx}`} style={{ whiteSpace: 'pre-wrap', marginBottom: '8px' }}>
-              {buffer.join('\n')}
-            </div>
-          );
-          buffer = [];
+    return parts.map((part, idx) => {
+      if (!part) return null;
+
+      // Markdown bold: **word**
+      if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+        const content = part.slice(2, -2);
+        return (
+          <strong key={idx} className="answer-bold">
+            {content}
+          </strong>
+        );
+      }
+
+      // Inline citation: [Guideline ...]
+      if (part.startsWith('[') && part.endsWith(']')) {
+        const norm = part.toLowerCase().replace(/\s+/g, ' ');
+        if (seenCitations.has(norm)) {
+          // Drop repetition: if the same ref is cited twice in one answer, keep the first
+          return null;
         }
-        elements.push(
-          <div key={`notice-${idx}`} className="lhdn-notice-box">
-            {line.replace(/^["'\s]+|["'\s]+$/g, '')}
+        seenCitations.add(norm);
+        return (
+          <span key={idx} className="inline-citation">
+            {part}
+          </span>
+        );
+      }
+
+      return <span key={idx}>{part}</span>;
+    });
+  };
+
+  // Render full formatted answer
+  const renderFormattedAnswer = (text: string) => {
+    const lines = text.split(/\n\n+/);
+    const seenCitations = new Set<string>();
+
+    return lines.map((paragraph, pIdx) => {
+      const trimmed = paragraph.trim();
+      if (!trimmed) return null;
+
+      // Check if it's the LHDN notice line
+      if (/confirm.*with LHDN/i.test(trimmed)) {
+        return (
+          <div key={`notice-${pIdx}`} className="lhdn-notice-box">
+            {trimmed.replace(/^["'\s]+|["'\s]+$/g, '')}
           </div>
         );
-      } else {
-        buffer.push(line);
       }
-    });
 
-    if (buffer.length > 0) {
-      elements.push(
-        <div key="p-last" style={{ whiteSpace: 'pre-wrap' }}>
-          {buffer.join('\n')}
-        </div>
+      // Check if it's the assumption sentence ("I assumed today's date...", "no transaction date was given, so today was assumed")
+      const isAssumption = /^(?:note|assumption):?\s*(?:no transaction date was given|i assumed today'?s?\s+date|today was assumed)/i.test(trimmed)
+        || /(?:no transaction date was given|assumed today'?s?\s+date)/i.test(trimmed);
+
+      if (isAssumption) {
+        // Assumption sentence must not carry a citation — strip any bracketed citation
+        const cleanAssumption = trimmed.replace(/\[(?:(?:General\s+)?Guideline|Specific\s+Guideline|FAQ)[^\]]+\]/g, '').trim();
+        return (
+          <div key={`assumption-${pIdx}`} className="assumption-note">
+            {cleanAssumption}
+          </div>
+        );
+      }
+
+      // Standard body paragraph
+      return (
+        <p key={`p-${pIdx}`} className="answer-paragraph">
+          {renderInlineTokens(trimmed, seenCitations)}
+        </p>
       );
-    }
-
-    return elements;
+    });
   };
 
   return (
@@ -244,6 +298,8 @@ export const AskChat: React.FC<AskChatProps> = ({
               );
             }
 
+            const dedupedCites = getDedupedCitations(m.citations || []);
+
             return (
               <div key={m.id} className="msg-row assistant">
                 <div className="assistant-area">
@@ -257,12 +313,12 @@ export const AskChat: React.FC<AskChatProps> = ({
                     {renderFormattedAnswer(m.content)}
                   </div>
 
-                  {m.citations && m.citations.length > 0 && (
+                  {dedupedCites.length > 0 && (
                     <div className="citations-block">
                       <ul className="citations-list">
-                        {m.citations.map((c: Citation, cIdx: number) => (
+                        {dedupedCites.map((c: Citation, cIdx: number) => (
                           <li key={cIdx} className="citation-item">
-                            &sect; <strong>{c.doc}</strong> v{c.version} &sect;{c.section}, p{c.page}
+                            {c.doc} v{c.version} &sect;{c.section}, p{c.page}
                           </li>
                         ))}
                       </ul>

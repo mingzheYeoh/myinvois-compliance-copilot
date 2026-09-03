@@ -263,9 +263,39 @@ body {
 .answer-body {
   font-size: 1rem;
   line-height: 1.65;
-  color: var(--fg);
+  color: var(--muted-dark);
+}
+
+.answer-paragraph {
+  margin-bottom: 12px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.answer-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.answer-bold {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.inline-citation {
+  font-size: 0.82em;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 3px;
+}
+
+/* Assumption note (italic grey, set apart from answer) */
+.assumption-note {
+  font-style: italic;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin-top: 14px;
+  margin-bottom: 8px;
 }
 
 /* LHDN Notice (Apple style: quiet indented callout with subtle bar) */
@@ -278,28 +308,24 @@ body {
   line-height: 1.5;
 }
 
-/* Citations block (Indented small grey text, no divider line, no title) */
+/* Citations block (Indented small grey text, no § bullet, no divider line) */
 .citations-block {
-  margin-top: 12px;
-  padding-left: 4px;
+  margin-top: 16px;
+  padding-left: 14px;
 }
 
 .citations-list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .citation-item {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--muted);
-  line-height: 1.4;
-}
-
-.citation-item strong {
-  font-weight: 500;
-  color: var(--muted-dark);
+  line-height: 1.45;
+  font-weight: 400;
 }
 
 /* Loading State (Text only, no spinner) */

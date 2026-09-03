@@ -196,6 +196,17 @@ copied verbatim from the block or the context entry it came from:
 
     [<doc> v<version> §<section>, p<page>]
 
+Formatting and Typography Rules:
+- The first sentence must be the direct answer itself, under 20 words, with no preamble.
+  Detail follows in subsequent paragraphs.
+- Apply markdown bold (**...**) ONLY to the conclusion word and decisive figures (e.g.
+  **No**, **RM12,000**, **exceeds RM10,000**, **1 January 2026**). Include at most two or
+  three bold phrases per answer; NEVER bold a whole sentence.
+- If the deterministic block notes an assumption (e.g. no transaction date was given, so today
+  was assumed), state that assumption in a separate paragraph at the end: "Note: no transaction
+  date was given, so [date] (today) was assumed." This is an operational note, NOT guideline
+  content, and must NEVER carry a citation.
+
 {precedence}
 
 Never invent, guess or reformat a citation, and never cite a section you were
@@ -378,7 +389,7 @@ def _determination_block(d: dict[str, Any]) -> tuple[str, str]:
                 lines.append(f"  {key}: {d[key]}")
     if d.get("date_assumed"):
         lines.append(f"  NOTE: no transaction date was given, so {d['date_assumed']} "
-                     f"(today) was assumed. Say so in the answer.")
+                     f"(today) was assumed. State this as an operational note without a citation.")
     for r in d.get("reasons", []):
         lines.append(f"  - [{r['section']}] ({r['basis']}) {r['text']}")
     if d.get("facts"):
