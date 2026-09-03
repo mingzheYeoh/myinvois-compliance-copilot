@@ -113,3 +113,4 @@ The router emits the following intent strings:
 
 ### Proposal:
 Standardize human-readable badges across API consumers. The frontend maps `general_qa` to **General**, `applicability` to **Applicability**, and `field_check` to **Field Check**.
+

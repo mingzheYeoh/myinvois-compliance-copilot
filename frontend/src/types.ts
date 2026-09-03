@@ -63,3 +63,4 @@ export interface ChatMessage {
   errorDetail?: ChatError;
   timestamp: string;
 }
+

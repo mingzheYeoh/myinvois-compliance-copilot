@@ -75,7 +75,8 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      <Footer />
+      <Footer budget={health?.budget} />
     </div>
   );
 };
+

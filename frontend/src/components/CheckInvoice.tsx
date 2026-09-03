@@ -4,7 +4,7 @@ import { ValidateResponse, FieldIssue } from '../types';
 export const CheckInvoice: React.FC = () => {
   const [mode, setMode] = useState<'form' | 'json'>('form');
 
-  // Quick form fields (most common fields)
+  // Quick form fields
   const [supplierName, setSupplierName] = useState('ACME Innovations Sdn Bhd');
   const [supplierTin, setSupplierTin] = useState('C1234567890');
   const [invoiceNumber, setInvoiceNumber] = useState('INV-2026-0042');
@@ -38,12 +38,12 @@ export const CheckInvoice: React.FC = () => {
       try {
         const parsed = JSON.parse(jsonInput);
         if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-          setError('JSON must be a key-value object representing the invoice fields.');
+          setError('JSON must be an object with invoice fields.');
           return null;
         }
         return parsed;
       } catch (err) {
-        setError('Invalid JSON format. Please verify your syntax.');
+        setError('Invalid JSON format.');
         return null;
       }
     }
@@ -64,13 +64,13 @@ export const CheckInvoice: React.FC = () => {
 
       const data = await response.json();
       if (!response.ok) {
-        setError(data.error || 'Failed to validate invoice.');
+        setError(data.error || 'Validation request failed.');
         setReport(null);
       } else {
         setReport(data as ValidateResponse);
       }
     } catch (err) {
-      setError('Could not connect to the validation server. Please try again.');
+      setError('Could not connect to the server.');
     } finally {
       setLoading(false);
     }
@@ -116,13 +116,11 @@ export const CheckInvoice: React.FC = () => {
 
   return (
     <div className="view-container check-invoice-container">
-      <div className="validator-banner">
-        <strong>Deterministic Validation Engine:</strong> Validates fields directly against official
-        IRBM Appendix 1 specifications. This endpoint uses <em>no LLM tokens</em> and remains 100% available
-        even if daily question quota is spent.
-      </div>
+      <p className="explainer-text">
+        Deterministic validation against official IRBM Appendix 1. No AI quota needed.
+      </p>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div className="input-mode-tabs">
           <button
             type="button"
@@ -140,20 +138,20 @@ export const CheckInvoice: React.FC = () => {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.4rem' }}>
+        <div className="sample-actions">
           <button
             type="button"
             className="btn-secondary"
             onClick={() => loadSample('minimal')}
           >
-            Incomplete Sample
+            Incomplete sample
           </button>
           <button
             type="button"
             className="btn-secondary"
             onClick={() => loadSample('compliant')}
           >
-            Compliant Sample
+            Compliant sample
           </button>
         </div>
       </div>
@@ -161,7 +159,7 @@ export const CheckInvoice: React.FC = () => {
       {mode === 'form' ? (
         <div className="form-grid">
           <div className="form-field full-width">
-            <label htmlFor="sup-name">Supplier's Name *</label>
+            <label htmlFor="sup-name">Supplier's Name</label>
             <input
               id="sup-name"
               type="text"
@@ -172,7 +170,7 @@ export const CheckInvoice: React.FC = () => {
           </div>
 
           <div className="form-field">
-            <label htmlFor="sup-tin">Supplier's TIN *</label>
+            <label htmlFor="sup-tin">Supplier's TIN</label>
             <input
               id="sup-tin"
               type="text"
@@ -183,7 +181,7 @@ export const CheckInvoice: React.FC = () => {
           </div>
 
           <div className="form-field">
-            <label htmlFor="inv-num">Invoice Number (Code) *</label>
+            <label htmlFor="inv-num">Invoice Number (Code)</label>
             <input
               id="inv-num"
               type="text"
@@ -194,7 +192,7 @@ export const CheckInvoice: React.FC = () => {
           </div>
 
           <div className="form-field">
-            <label htmlFor="inv-date">Invoice Date and Time *</label>
+            <label htmlFor="inv-date">Invoice Date and Time</label>
             <input
               id="inv-date"
               type="text"
@@ -205,7 +203,7 @@ export const CheckInvoice: React.FC = () => {
           </div>
 
           <div className="form-field">
-            <label htmlFor="inv-total">Total Payable Amount *</label>
+            <label htmlFor="inv-total">Total Payable Amount</label>
             <input
               id="inv-total"
               type="text"
@@ -216,30 +214,25 @@ export const CheckInvoice: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="json-editor-box">
-          <label htmlFor="json-textarea" style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)' }}>
-            Invoice JSON Object:
-          </label>
+        <div className="form-field">
           <textarea
             id="json-textarea"
             className="json-textarea"
             value={jsonInput}
             onChange={(e) => setJsonInput(e.target.value)}
-            placeholder='{ "Supplier&#39;s Name": "...", "Supplier&#39;s TIN": "..." }'
-            rows={8}
+            rows={9}
           />
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '4px' }}>
         <button
           type="button"
           className="btn-primary"
           onClick={handleValidate}
           disabled={loading}
-          style={{ minWidth: '130px', justifyContent: 'center' }}
         >
-          {loading ? 'Checking...' : 'Check Invoice'}
+          {loading ? 'Checking…' : 'Check Invoice'}
         </button>
       </div>
 
@@ -251,34 +244,27 @@ export const CheckInvoice: React.FC = () => {
 
       {report && (
         <div className="report-card">
-          <div className={`report-status-banner ${report.valid ? 'valid' : 'invalid'}`}>
+          <div className={`report-status-line ${report.valid ? 'valid' : 'invalid'}`}>
             <span>
               {report.valid
                 ? 'All mandatory fields present'
                 : `Missing ${report.missing_mandatory.length} mandatory field${report.missing_mandatory.length > 1 ? 's' : ''}`}
             </span>
-            <span style={{ fontSize: '0.8rem', opacity: 0.9 }}>
-              Checked {report.checked} fields
+            <span style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 400 }}>
+              {report.checked} fields checked
             </span>
           </div>
 
           {report.missing_mandatory.length > 0 && (
             <div className="report-section">
-              <h4 style={{ color: '#b91c1c' }}>
-                Missing Mandatory Fields ({report.missing_mandatory.length})
-              </h4>
+              <h4>Missing Mandatory Fields</h4>
               <ul className="report-items-list">
                 {report.missing_mandatory.map((issue: FieldIssue) => (
-                  <li key={issue.no} className="report-item" style={{ borderColor: '#fecaca', background: '#fff5f5' }}>
+                  <li key={issue.no} className="report-item">
                     <div className="report-item-title">
                       <span>#{issue.no} {issue.name}</span>
                       <span className="report-item-ref">{issue.section}</span>
                     </div>
-                    {issue.category && (
-                      <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>
-                        Category: {issue.category}
-                      </div>
-                    )}
                   </li>
                 ))}
               </ul>
@@ -287,9 +273,7 @@ export const CheckInvoice: React.FC = () => {
 
           {report.check_conditional.length > 0 && (
             <div className="report-section">
-              <h4 style={{ color: '#b45309' }}>
-                Conditional Fields to Verify ({report.check_conditional.length})
-              </h4>
+              <h4>Conditional Fields to Verify</h4>
               <ul className="report-items-list">
                 {report.check_conditional.map((issue: FieldIssue) => (
                   <li key={issue.no} className="report-item">
@@ -299,7 +283,7 @@ export const CheckInvoice: React.FC = () => {
                     </div>
                     {issue.condition && (
                       <div className="report-item-condition">
-                        <strong>Condition:</strong> {issue.condition}
+                        {issue.condition}
                       </div>
                     )}
                   </li>
@@ -310,9 +294,7 @@ export const CheckInvoice: React.FC = () => {
 
           {report.unknown_keys && report.unknown_keys.length > 0 && (
             <div className="report-section">
-              <h4 style={{ color: '#854d0e' }}>
-                Unrecognised Fields ({report.unknown_keys.length})
-              </h4>
+              <h4>Unrecognised Keys</h4>
               <div className="unknown-keys-chip-container">
                 {report.unknown_keys.map((k, idx) => (
                   <span key={idx} className="unknown-key-chip">
@@ -323,20 +305,19 @@ export const CheckInvoice: React.FC = () => {
             </div>
           )}
 
-          <div className="report-section">
+          <div style={{ marginTop: '8px' }}>
             <button
               type="button"
               className="btn-secondary"
               onClick={() => setShowPresent(!showPresent)}
-              style={{ alignSelf: 'flex-start' }}
             >
-              {showPresent ? 'Hide' : 'Show'} Recognized Present Fields ({report.present.length})
+              {showPresent ? 'Hide' : 'Show'} recognised present fields ({report.present.length})
             </button>
 
             {showPresent && (
-              <div className="present-keys-summary">
+              <p style={{ fontSize: '0.82rem', color: 'var(--muted)', marginTop: '8px', lineHeight: 1.5 }}>
                 {report.present.join(', ') || 'None'}
-              </div>
+              </p>
             )}
           </div>
         </div>

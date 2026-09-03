@@ -22,18 +22,13 @@ export const AskChat: React.FC<AskChatProps> = ({
   } | null>(null);
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
 
-  // In-memory thread_id kept for the session
   const threadIdRef = useRef<string | null>(null);
   const lastSubmittedRef = useRef<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading, networkError, quotaExhaustedError, rateLimitError]);
 
   const handleResetSession = () => {
@@ -51,7 +46,7 @@ export const AskChat: React.FC<AskChatProps> = ({
     if (!trimmed || loading || !isHealthy) return;
 
     if (trimmed.length > MAX_CHARS) {
-      return; // Prevent client-side
+      return;
     }
 
     lastSubmittedRef.current = trimmed;
@@ -83,16 +78,13 @@ export const AskChat: React.FC<AskChatProps> = ({
       const data = await response.json();
 
       if (!response.ok) {
-        // Handle error responses according to contract
         if (response.status === 429) {
           if (data.resets_at) {
-            // Daily question quota exhausted
             setQuotaExhaustedError({
               error: data.error || 'The daily question quota is used up.',
               resets_at: data.resets_at,
             });
           } else {
-            // Slowapi rate limit
             setRateLimitError('Slow down, try again in a minute.');
           }
         } else if (response.status === 413) {
@@ -101,13 +93,11 @@ export const AskChat: React.FC<AskChatProps> = ({
           setNetworkError(data.error || 'Something went wrong handling that request.');
         }
 
-        // Restore the typed input so the user doesn't lose it
         setInput(trimmed);
         setLoading(false);
         return;
       }
 
-      // Success (200)
       const chatData = data as ChatResponse;
       if (chatData.thread_id) {
         threadIdRef.current = chatData.thread_id;
@@ -126,9 +116,8 @@ export const AskChat: React.FC<AskChatProps> = ({
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
-      // Network error
       setNetworkError('Could not reach the server. Please check your connection.');
-      setInput(trimmed); // Don't lose typed message
+      setInput(trimmed);
     } finally {
       setLoading(false);
     }
@@ -155,7 +144,6 @@ export const AskChat: React.FC<AskChatProps> = ({
   const charCount = input.length;
   const isOverLimit = charCount > MAX_CHARS;
 
-  // Format resets_at nicely if available
   const formatResetTime = (isoString?: string) => {
     if (!isoString) return 'midnight UTC';
     try {
@@ -166,29 +154,27 @@ export const AskChat: React.FC<AskChatProps> = ({
     }
   };
 
-  // Route badge helper
-  const getRouteBadge = (route?: string | null) => {
-    if (!route) return { label: 'General', className: 'general' };
+  const getRouteLabel = (route?: string | null) => {
+    if (!route) return 'General';
     const r = route.toLowerCase();
-    if (r.includes('applicab')) return { label: 'Applicability', className: 'applicability' };
-    if (r.includes('field')) return { label: 'Field Check', className: 'field_check' };
-    return { label: 'General', className: 'general' };
+    if (r.includes('applicab')) return 'Applicability';
+    if (r.includes('field')) return 'Field Check';
+    return 'General';
   };
 
-  // Helper to style "confirm with LHDN" line as a notice
+  // Render answer text, detecting "confirm with LHDN" line and styling it as quiet callout
   const renderFormattedAnswer = (text: string) => {
     const lines = text.split('\n');
     const elements: React.ReactNode[] = [];
     let buffer: string[] = [];
 
     lines.forEach((line, idx) => {
-      // Detect "confirm with LHDN"
       const isLhdnNotice = /confirm.*with LHDN/i.test(line);
 
       if (isLhdnNotice) {
         if (buffer.length > 0) {
           elements.push(
-            <div key={`p-${idx}`} style={{ whiteSpace: 'pre-wrap', marginBottom: '0.5rem' }}>
+            <div key={`p-${idx}`} style={{ whiteSpace: 'pre-wrap', marginBottom: '8px' }}>
               {buffer.join('\n')}
             </div>
           );
@@ -196,10 +182,7 @@ export const AskChat: React.FC<AskChatProps> = ({
         }
         elements.push(
           <div key={`notice-${idx}`} className="lhdn-notice-box">
-            <span className="lhdn-notice-icon" aria-hidden="true">&#9888;</span>
-            <div>
-              <strong>LHDN Verification Notice:</strong> {line.replace(/^["'\s]+|["'\s]+$/g, '')}
-            </div>
+            {line.replace(/^["'\s]+|["'\s]+$/g, '')}
           </div>
         );
       } else {
@@ -223,9 +206,9 @@ export const AskChat: React.FC<AskChatProps> = ({
       <div className="chat-thread">
         {messages.length === 0 ? (
           <div className="chat-empty">
-            <h3>Ask the Compliance Assistant</h3>
+            <h3>Ask anything about e-Invoice rules</h3>
             <p>
-              Ask any question about Malaysian LHDN e-Invoice guidelines, deadlines, thresholds, or exemptions.
+              Answers cite the official IRBM Guideline and FAQ versions and sections.
             </p>
             <div className="sample-prompts">
               <button
@@ -233,21 +216,21 @@ export const AskChat: React.FC<AskChatProps> = ({
                 className="sample-prompt-btn"
                 onClick={() => setInput('What is the exemption threshold for e-Invoice implementation?')}
               >
-                &ldquo;What is the exemption threshold for e-Invoice implementation?&rdquo;
+                &ldquo;What is the exemption threshold for e-Invoice implementation?&rdquo; &rarr;
               </button>
               <button
                 type="button"
                 className="sample-prompt-btn"
                 onClick={() => setInput('My business started in 2024 with RM2M turnover. When must I implement e-Invoice?')}
               >
-                &ldquo;My business started in 2024 with RM2M turnover. When must I implement e-Invoice?&rdquo;
+                &ldquo;My business started in 2024 with RM2M turnover. When must I implement e-Invoice?&rdquo; &rarr;
               </button>
               <button
                 type="button"
                 className="sample-prompt-btn"
                 onClick={() => setInput('Can I issue a consolidated e-Invoice for a RM12,000 sale?')}
               >
-                &ldquo;Can I issue a consolidated e-Invoice for a RM12,000 sale?&rdquo;
+                &ldquo;Can I issue a consolidated e-Invoice for a RM12,000 sale?&rdquo; &rarr;
               </button>
             </div>
           </div>
@@ -261,20 +244,13 @@ export const AskChat: React.FC<AskChatProps> = ({
               );
             }
 
-            const routeInfo = getRouteBadge(m.route);
-
             return (
               <div key={m.id} className="msg-row assistant">
-                <div className="assistant-card">
+                <div className="assistant-area">
                   <div className="msg-header-bar">
-                    <span className={`route-badge ${routeInfo.className}`}>
-                      {routeInfo.label}
+                    <span className="route-badge">
+                      {getRouteLabel(m.route)}
                     </span>
-                    {m.tokens !== undefined && m.tokens > 0 && (
-                      <span className="msg-meta">
-                        {m.tokens} tokens
-                      </span>
-                    )}
                   </div>
 
                   <div className="answer-body">
@@ -283,14 +259,10 @@ export const AskChat: React.FC<AskChatProps> = ({
 
                   {m.citations && m.citations.length > 0 && (
                     <div className="citations-block">
-                      <div className="citations-heading">Guideline Citations</div>
                       <ul className="citations-list">
                         {m.citations.map((c: Citation, cIdx: number) => (
                           <li key={cIdx} className="citation-item">
-                            <span className="citation-bullet">&sect;</span>
-                            <span>
-                              <strong>{c.doc}</strong> v{c.version} &sect;{c.section}, p{c.page}
-                            </span>
+                            &sect; <strong>{c.doc}</strong> v{c.version} &sect;{c.section}, p{c.page}
                           </li>
                         ))}
                       </ul>
@@ -304,27 +276,21 @@ export const AskChat: React.FC<AskChatProps> = ({
 
         {loading && (
           <div className="msg-row assistant">
-            <div className="assistant-card" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--muted)' }}>
-              <span className="loading-dot" />
-              <span>Analyzing official IRBM guidelines...</span>
-            </div>
+            <div className="loading-text">Checking the guidelines…</div>
           </div>
         )}
 
         {quotaExhaustedError && (
           <div className="quota-box" role="alert">
             <p>
-              <strong>Daily Quota Exhausted:</strong> {quotaExhaustedError.error}
-            </p>
-            <p style={{ fontSize: '0.8rem' }}>
-              Resets at: <strong>{formatResetTime(quotaExhaustedError.resets_at)}</strong>.
+              Daily question quota is used up. Resets at {formatResetTime(quotaExhaustedError.resets_at)}.
             </p>
             <button
               type="button"
               className="quota-switch-link"
               onClick={onSwitchToCheckInvoice}
             >
-              &rarr; Switch to Check Invoice (works without LLM quota)
+              Switch to Check Invoice (no AI quota needed) &rarr;
             </button>
           </div>
         )}
@@ -353,7 +319,7 @@ export const AskChat: React.FC<AskChatProps> = ({
             <textarea
               ref={textareaRef}
               className="chat-textarea"
-              placeholder={isHealthy ? "Ask a question about e-Invoice rules (Enter to send, Shift+Enter for newline)..." : "Waiting for backend service to become ready..."}
+              placeholder={isHealthy ? "Ask a question… (Enter to send, Shift+Enter for newline)" : "Waking up…"}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -364,7 +330,6 @@ export const AskChat: React.FC<AskChatProps> = ({
             <div className="chat-form-bottom">
               <span className={`char-counter ${isOverLimit ? 'limit-exceeded' : ''}`}>
                 {charCount.toLocaleString()} / {MAX_CHARS.toLocaleString()}
-                {isOverLimit && ' (Limit exceeded)'}
               </span>
 
               <div className="chat-actions">
@@ -374,9 +339,8 @@ export const AskChat: React.FC<AskChatProps> = ({
                     className="btn-reset"
                     onClick={handleResetSession}
                     disabled={loading}
-                    title="Start a new chat thread"
                   >
-                    New Chat
+                    Clear
                   </button>
                 )}
                 <button
@@ -384,7 +348,7 @@ export const AskChat: React.FC<AskChatProps> = ({
                   className="btn-primary"
                   disabled={loading || !isHealthy || !input.trim() || isOverLimit}
                 >
-                  {loading ? 'Asking...' : 'Ask'}
+                  Ask
                 </button>
               </div>
             </div>
