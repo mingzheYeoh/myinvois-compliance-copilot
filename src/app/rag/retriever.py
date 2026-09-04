@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -110,3 +111,67 @@ def search(query: str, k: int = 5, versions: dict[str, str] | None = None) -> li
              "pool": POOL, "rrf": RRF_K, "k": fetch},
         ).fetchall()
     return _apply_quota([Hit(*r) for r in rows], k)
+
+
+# "Guideline v4.8 §1.6.1(e), p15" -> ("Guideline", "1.6.1(e)"). The rule engine
+# writes its citations in the shape the answer must quote, so they parse the same
+# way the auditor parses an answer.
+REF = re.compile(r"([A-Za-z ]+?) v[^ ]+ §([^,]+)")
+LONG = {v: k for k, v in
+        {"general_guideline": "Guideline", "specific_guideline": "Specific Guideline",
+         "general_faq": "FAQ"}.items()}
+
+PINNED_SQL = """
+SELECT doc, version, section, section_title, page, content, 1.0, NULL, NULL
+FROM chunks
+WHERE doc || ':' || version = ANY(%(versions)s)
+  AND doc = %(doc)s
+  AND (section = %(sec)s OR %(sec)s LIKE section || '%%')
+ORDER BY
+  -- The cited row first. Now that a table is one chunk per row, "§1.6.1(e)"
+  -- must return the row holding RM3,000,000, not whichever row sorts first.
+  (%(marker)s <> '' AND content LIKE '%%' || %(marker)s || '%%') DESC,
+  -- Then the most specific section: "1.6.1(e)" prefix-matches the 1.6 heading
+  -- too, and that heading is 38 characters of nothing.
+  length(section) DESC,
+  page
+LIMIT %(limit)s
+"""
+
+# The row marker inside a citation: "§1.6.1(e)" -> "(e)".
+MARKER = re.compile(r"(\([a-z]\))")
+
+
+def search_sections(refs: list[str], versions: dict[str, str] | None = None,
+                    limit: int = 2) -> list[Hit]:
+    """Fetch the chunks of specific cited sections, by metadata rather than by text.
+
+    The rule engine knows which section its answer rests on, so that section should
+    not have to win a similarity contest to be retrieved. Appending the label to the
+    query string -- which is what this used to do -- does not work: "§1.6.1(e)" as
+    free text retrieves nothing, because the guideline body never writes its own
+    section numbers. Measured on q01: with the label appended, the chunk holding
+    RM3,000,000 was not in the top 20; the corpus had it the whole time.
+
+    The section match is a prefix, both ways round: the engine cites §3.7.2 where
+    the document numbers the section 3.7, and §1.6.1(e) where the chunk is 1.6.1.
+    """
+    filt = [f"{d}:{v}" for d, v in versions.items()] if versions else list(latest_versions())
+    want: list[tuple[str, str]] = []
+    for ref in refs:
+        if (m := REF.match(ref.strip())) and (doc := LONG.get(m.group(1).strip())):
+            sec = m.group(2).split(" Table")[0].strip()
+            if (doc, sec) not in want:
+                want.append((doc, sec))
+    if not want:
+        return []
+    out: list[Hit] = []
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        register_vector(conn)
+        for doc, sec in want:
+            mark = m.group(1) if (m := MARKER.search(sec)) else ""
+            out += [Hit(*r) for r in conn.execute(
+                PINNED_SQL, {"versions": filt, "doc": doc, "sec": sec,
+                             "marker": mark, "limit": limit}
+            ).fetchall()]
+    return out

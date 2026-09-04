@@ -22,7 +22,7 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
 from app.rag.chain import SHORT, format_context, get_llm
-from app.rag.retriever import Hit, search
+from app.rag.retriever import Hit, search, search_sections
 from app.rules.engine import (
     BusinessProfile,
     Determination,
@@ -32,6 +32,7 @@ from app.rules.engine import (
 )
 from app.tools.validate_fields import field_list, validate_fields
 
+PINNED_MAX = 2
 MAX_RETRIES = 2
 
 # Fields that mean "the user is asking about their own business". Anything else
@@ -206,6 +207,11 @@ Formatting and Typography Rules:
   was assumed), state that assumption in a separate paragraph at the end: "Note: no transaction
   date was given, so [date] (today) was assumed." This is an operational note, NOT guideline
   content, and must NEVER carry a citation.
+- Do not add a qualifier the source does not carry. "only if", "only when", "always",
+  "never", "in all cases" and "solely" turn a list of conditions into an exhaustive
+  one and a rule into an absolute. Write them when the material writes them, and not
+  otherwise: a list of ways an exemption can be lost is "lost if", never "lost only
+  if", unless the source itself says the list is exhaustive.
 
 {precedence}
 
@@ -214,6 +220,13 @@ not given. If NEITHER the deterministic block below NOR the context answers the
 question, reply exactly "Not covered in the guidelines." and stop. A
 deterministic block is itself an answer: report it even when the context is
 empty, using the citations it carries.
+
+Material that merely MENTIONS the subject does not answer the question. A
+description of what MyInvois is does not settle what it may be used for; a
+passage about e-Invoice does not settle a question about another tax regime
+(SST returns, income tax rates, customs). Where answering would need you to
+reason from a general description to a specific conclusion the guidelines never
+state, that is the abstention case, not a licence to infer.
 {determination}
 Context:
 {context}"""),
@@ -492,9 +505,29 @@ def generate(state: State) -> State:
 
 def retrieve_for_rules(state: State) -> State:
     """Retrieve the guideline text behind the rule engine's own citations, so the
-    answer can quote the sections the determination rests on."""
-    _, refs = _determination_block(state.get("determination", {}))
-    return {"hits": search(f"{state['question']} {refs}".strip(), k=6)}
+    answer can quote the sections the determination rests on.
+
+    The cited sections are fetched by metadata. Appending the refs to the query
+    text -- all this used to do -- does not retrieve them: section numbers appear
+    in our citations, not in the guideline prose, so "§1.6.1(e)" as a search term
+    matches nothing. Day 10 measured the cost: context recall 0.00 on five cases
+    whose answer rested on a section the engine had already named.
+
+    Pinned sections are APPENDED to the hybrid results, never substituted for
+    them. Taking three of the six slots cost q07 the §8.6 foreign-supplier chunk
+    and q12 the §11.1.2/§11.1.4 chunks its answer is required to cite: the engine
+    knows which section grants the rule, and hybrid search knows which one spells
+    out the detail, so evicting one for the other trades a fixed failure for a new
+    one.
+    """
+    d = state.get("determination", {})
+    _, refs = _determination_block(d)
+    hits = search(f"{state['question']} {refs}".strip(), k=6)
+    seen = {(h.doc, h.section, h.page) for h in hits}
+    pinned = [h for h in search_sections([r["section"] for r in [*d.get("reasons", []),
+                                                                 *d.get("facts", [])]])
+              if (h.doc, h.section, h.page) not in seen]
+    return {"hits": hits + pinned[:PINNED_MAX]}
 
 
 # --- wiring -----------------------------------------------------------------

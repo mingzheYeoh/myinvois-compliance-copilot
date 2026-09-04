@@ -45,6 +45,10 @@ class Chunk:
     section: str
     title: str
     lines: list[tuple[int, str]]
+    # A table's preamble, repeated onto each row chunk so a lone row still says
+    # what it is a row OF. Deliberately not part of `lines`: page comes from
+    # lines[0], and a row on p33 of a table that opens on p32 must cite p33.
+    header: str = ""
 
     @property
     def page(self) -> int:
@@ -52,7 +56,8 @@ class Chunk:
 
     @property
     def text(self) -> str:
-        return "\n".join(t for _, t in self.lines).strip()
+        body = "\n".join(t for _, t in self.lines).strip()
+        return f"{self.header}\n{body}".strip() if self.header else body
 
 
 def clean(line: str) -> str:
@@ -190,7 +195,7 @@ def by_size(s: Chunk) -> list[Chunk]:
     size = 0
     for page_no, line in s.lines:
         if size + len(line) > MAX_CHARS and piece:
-            out.append(Chunk(s.section, s.title, piece))
+            out.append(Chunk(s.section, s.title, piece, s.header))
             piece, size = [], 0
         piece.append((page_no, line))
         size += len(line) + 1
@@ -199,13 +204,74 @@ def by_size(s: Chunk) -> list[Chunk]:
         if len("\n".join(t for _, t in piece)) < MIN_CHARS and out:
             out[-1].lines.extend(piece)
         else:
-            out.append(Chunk(s.section, s.title, piece))
+            out.append(Chunk(s.section, s.title, piece, s.header))
+    return out
+
+
+# A table row opens with its own marker: a lettered item ("(e) Taxpayer with an
+# annual turnover..."), or a bare row number ("6 Payment to agents"). Section
+# numbering is not a row -- "3.7.1 For the purposes" has a dot after the digits,
+# never a space -- so the lookahead for whitespace is what keeps them apart.
+LETTER_ROW = re.compile(r"^\(([a-z])\)\s+\S")
+NUMBER_ROW = re.compile(r"^(\d{1,2})\s+[A-Za-z]")
+
+
+def _step(prev: str, cur: str) -> int:
+    if prev.isalpha() and cur.isalpha():
+        return ord(cur) - ord(prev)
+    return int(cur) - int(prev) if prev.isdigit() and cur.isdigit() else 0
+
+
+def _chain(marks: list[tuple[int, str]]) -> list[tuple[int, str]]:
+    """Keep only the markers that continue the sequence: a, b, c, d, e.
+
+    Two jobs at once. It rejects prose, because the marker patterns alone fire on
+    any line opening with a small number -- "2 January 2026" among them -- and
+    only a real table numbers its rows consecutively. And it ignores NESTED
+    markers: Guideline 1.6.1 runs (a)(b)(c)(d)(e) with its own (i)(ii) beneath
+    (c), and cutting at that (i) both orphans it and truncates (c) of the detail
+    that belongs to it.
+    """
+    kept = marks[:1]
+    for i, k in marks[1:]:
+        if _step(kept[-1][1], k) == 1:
+            kept.append((i, k))
+    return kept
+
+
+def table_rows(s: Chunk) -> list[Chunk] | None:
+    """One chunk per table row, or None if this section is not a table.
+
+    Day 10 measured context recall at 0.00 on five cases whose answer turns on a
+    single table cell -- the RM3,000,000 in Guideline 1.6.1(e), the activities in
+    Specific Guideline Table 3.6. The figures were in the corpus the whole time,
+    buried in an 1,800-character block that ranked below question-shaped FAQ
+    entries. A row is short, says one thing, and embeds close to the question that
+    asks for it; the preamble rides along as a header so the row still reads as a
+    row of something, and the page stays the row's own so the citation gets more
+    precise rather than less.
+    """
+    marks = _chain([(i, m.group(1))
+                    for i, (_, line) in enumerate(s.lines)
+                    if (m := LETTER_ROW.match(line) or NUMBER_ROW.match(line))])
+    if len(marks) < 3:
+        return None
+    header = "\n".join(t for _, t in s.lines[:marks[0][0]]).strip()
+    out: list[Chunk] = []
+    for (start, _), (end, _) in zip(marks, [*marks[1:], (len(s.lines), "")], strict=True):
+        out.extend(by_size(Chunk(s.section, s.title, s.lines[start:end], header)))
+    # Anything before the first row is context, not a chunk of its own; it is
+    # already carried on every row above.
     return out
 
 
 def pack(sections: list[Chunk], sub: re.Pattern | None = None) -> list[Chunk]:
-    """Sections -> chunks: split at sub-headings first, then on size."""
-    return [c for s in sections for part in subsplit(s, sub) for c in by_size(part)]
+    """Sections -> chunks: split at sub-headings, then table rows, then on size."""
+    out: list[Chunk] = []
+    for s in sections:
+        for part in subsplit(s, sub):
+            out.extend(table_rows(part) or by_size(part))
+    return out
 
 
 SCHEMA = """
