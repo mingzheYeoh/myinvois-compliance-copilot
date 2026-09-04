@@ -22,6 +22,7 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
 from app.rag.chain import SHORT, format_context, get_llm
+from app.rag.citations import normalise_pages
 from app.rag.retriever import Hit, search, search_sections
 from app.rules.engine import (
     BusinessProfile,
@@ -33,6 +34,9 @@ from app.rules.engine import (
 from app.tools.validate_fields import field_list, validate_fields
 
 PINNED_MAX = 2
+# The application owns this sentence, so "the guidelines do not address this"
+# always reads identically and can never be rendered as a negative answer.
+NOT_ADDRESSED = "Not covered in the guidelines."
 MAX_RETRIES = 2
 
 # Fields that mean "the user is asking about their own business". Anything else
@@ -87,6 +91,23 @@ class Grade(BaseModel):
 
 class Rewrite(BaseModel):
     query: str = Field(description="A reformulated retrieval query")
+
+
+class Answer(BaseModel):
+    """A verdict and a body, so coverage is structural rather than a turn of phrase.
+
+    Three outcomes, not two: the guidelines say yes, the guidelines say no, or the
+    guidelines do not address the question. The first two are `addressed` and live
+    in `answer`; the third is `not_addressed`, and the application supplies its
+    wording so it cannot come out sounding like a "No".
+    """
+
+    coverage: Literal["addressed", "not_addressed"] = Field(
+        description="not_addressed when the material does not speak to the question "
+                    "at all. Never infer a No from material that is merely silent.")
+    answer: str = Field(
+        default="",
+        description="The cited answer. Leave empty when coverage is not_addressed.")
 
 
 class InvoiceField(BaseModel):
@@ -216,17 +237,25 @@ Formatting and Typography Rules:
 {precedence}
 
 Never invent, guess or reformat a citation, and never cite a section you were
-not given. If NEITHER the deterministic block below NOR the context answers the
-question, reply exactly "Not covered in the guidelines." and stop. A
-deterministic block is itself an answer: report it even when the context is
-empty, using the citations it carries.
+not given.
 
-Material that merely MENTIONS the subject does not answer the question. A
-description of what MyInvois is does not settle what it may be used for; a
-passage about e-Invoice does not settle a question about another tax regime
-(SST returns, income tax rates, customs). Where answering would need you to
-reason from a general description to a specific conclusion the guidelines never
-state, that is the abstention case, not a licence to infer.
+Decide `coverage` before writing anything. There are THREE outcomes, not two:
+
+  addressed      the material answers the question -- whether the answer is yes
+                 or no. Put that answer in `answer`, with citations.
+  not_addressed  the material does not speak to the question. Leave `answer`
+                 empty; the wording is supplied by the application.
+
+Absence of a statement is never evidence for a conclusion. Material that merely
+MENTIONS the subject has not addressed the question: a description of what
+MyInvois is does not settle what it may be used for, and a passage about
+e-Invoice does not settle a question about another tax regime (SST returns,
+income tax, stamp duty, customs). "The guidelines do not say X is allowed" does
+not license "X is not allowed" -- that is not_addressed, and writing it as a No
+states something the guidelines do not.
+
+A deterministic block is itself an answer: report it even when the context is
+empty, using the citations it carries.
 {determination}
 Context:
 {context}"""),
@@ -475,15 +504,36 @@ def _field_block(rep: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _compose(state: State, block: str) -> str:
+    """Ask for a verdict and a body, and let the application own the third case.
+
+    Coverage is a field, not a turn of phrase. Asked for prose alone, the model
+    answered the out-of-scope SST-02 question with "**No**. [Guideline v4.8 §1.5,
+    p13] ... It does not say MyInvois may be used for it" -- reasoning from
+    silence to a negative, which for a compliance tool is a different answer from
+    "the guidelines do not address this". No wording of the instruction fixes
+    that reliably, because both outcomes are the same shape: a sentence. Making
+    them different shapes does. When the verdict is NOT_ADDRESSED the body is
+    discarded and a fixed sentence is returned, so the third outcome cannot be
+    phrased as a negative answer even if the model tries.
+
+    A determination overrides the verdict: the rule engine reached its conclusion
+    from the guideline tables, and the model does not get to vote it uncovered.
+    """
+    got = structured(Answer).invoke(GENERATE_PROMPT.format_messages(
+        question=state["question"],
+        context=format_context(state.get("hits", [])),
+        precedence=PRECEDENCE,
+        determination=block,
+    ))
+    if got.coverage == "not_addressed" and not block.strip():
+        return NOT_ADDRESSED
+    return normalise_pages(got.answer.strip()) or NOT_ADDRESSED
+
+
 def generate(state: State) -> State:
     if state.get("intent") == "field_check":
-        answer = (GENERATE_PROMPT | get_llm()).invoke({
-            "question": state["question"],
-            "context": format_context(state.get("hits", [])),
-            "precedence": PRECEDENCE,
-            "determination": _field_block(state.get("field_report", {})),
-        })
-        return {"answer": answer.content}
+        return {"answer": _compose(state, _field_block(state.get("field_report", {})))}
 
     d0 = state.get("determination", {})
     missing = d0.get("missing") or []
@@ -494,13 +544,7 @@ def generate(state: State) -> State:
         asks = "\n".join(f"  - {ASK_FOR.get(m, m)}" for m in missing)
         return {"answer": "I need a little more before I can answer that:\n" + asks}
     block, _ = _determination_block(state.get("determination", {}))
-    answer = (GENERATE_PROMPT | get_llm()).invoke({
-        "question": state["question"],
-        "context": format_context(state.get("hits", [])),
-        "precedence": PRECEDENCE,
-        "determination": block,
-    })
-    return {"answer": answer.content}
+    return {"answer": _compose(state, block)}
 
 
 def retrieve_for_rules(state: State) -> State:

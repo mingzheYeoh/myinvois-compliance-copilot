@@ -257,3 +257,20 @@
     flight tickets and private charter, construction contracts, betting and
     gaming pay-outs, payments to agents/dealers/distributors, and (from
     1 January 2026) electricity and telecommunication.
+
+- id: q21
+  question: Is stamp duty payable on an e-Invoice?
+  expected_route: general_qa
+  expected_sections: []
+  expected_facts: ["Not covered in the guidelines"]
+  must_not_contain: ["no stamp duty", "not payable", "is not subject"]
+  why: >-
+    Stamp duty is the Stamp Act 1949, not the e-Invoice guidelines: "stamp duty"
+    and "Stamp Act" appear in none of the 420 chunks. The question is plausible
+    and adjacent - both are LHDN matters, and a business owner would reasonably
+    ask it - which is exactly the shape that invites reasoning from silence.
+    Day 11 watched the system do it on q18: handed a section that never mentions
+    SST-02, it answered "No" and cited the section for it. "No stamp duty is
+    payable" is a statement the corpus does not license. The only correct
+    response is that the guidelines do not address it, which is a different
+    answer from "no" and must not be phrased as one.

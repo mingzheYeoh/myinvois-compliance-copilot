@@ -9,7 +9,6 @@ from __future__ import annotations
 import contextlib
 import json
 import os
-import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -29,6 +28,7 @@ from app import budget
 from app.budget import QuotaExhausted
 from app.graph.graph import SHORT, build_graph
 from app.rag.chain import Busy
+from app.rag.citations import parse as parse_citations
 from app.rag.retriever import latest_versions
 from app.tools.validate_fields import validate_fields
 
@@ -42,7 +42,6 @@ load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 MAX_INPUT_CHARS = 2_000
 STATIC = Path(__file__).resolve().parents[1] / "static"
 STATIC.mkdir(parents=True, exist_ok=True)
-CITE = re.compile(r"[\[【]([^\]】]+?) v([^ \]】]+) §([^,\]】]+), ?p(\d+)[\]】]")
 
 @contextlib.asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -141,7 +140,7 @@ def chat(request: Request, body: ChatIn) -> JSONResponse:
     answer = out.get("answer", "")
     citations = [
         {"doc": d, "version": v, "section": sec, "page": int(pg)}
-        for d, v, sec, pg in {m.groups() for m in CITE.finditer(answer)}
+        for d, v, sec, pg in parse_citations(answer)
     ]
     return JSONResponse({
         "answer": answer,

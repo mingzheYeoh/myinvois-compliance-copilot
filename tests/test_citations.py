@@ -31,7 +31,7 @@ def test_every_rule_engine_citation_is_parseable():
     that may never consolidate were answered correctly and cited invisibly.
     Chunks carry one page each, so a range cannot be checked against one either.
     """
-    from app.api.main import CITE
+    from app.rag.citations import CITE
     from app.rules import params
 
     bad = [

@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
@@ -22,6 +21,7 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv()
 
 from app.rag.chain import SHORT, build_chain  # noqa: E402
+from app.rag.citations import CITE, normalise_pages  # noqa: E402
 from app.rag.retriever import search  # noqa: E402
 
 QUESTIONS = [
@@ -35,9 +35,6 @@ QUESTIONS = [
     "What is the penalty for not issuing an e-Invoice?",
 ]
 
-# The model sometimes emits fullwidth brackets, so accept both or the audit
-# below silently passes a citation it never checked.
-CITE = re.compile(r"[\[【]([^\]】]+?) v([^ \]】]+) §([^,\]】]+), ?p(\d+)[\]】]")
 
 
 # Models emit narrow / non-breaking spaces inside citations ("Table 3.6"),
@@ -52,7 +49,12 @@ SPACES = str.maketrans(dict.fromkeys(
 
 
 def norm(text: str) -> str:
-    return text.translate(SPACES)
+    """Fold everything cosmetic before a citation is compared or extracted.
+
+    Page ranges are folded here rather than at each call site, so eval.py and
+    ask_graph.py -- which both parse through norm() -- get the fix for free.
+    """
+    return normalise_pages(text.translate(SPACES))
 
 
 def cited(answer: str) -> set[tuple[str, str, str, str]]:

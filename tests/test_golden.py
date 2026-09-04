@@ -15,10 +15,13 @@ from scripts.eval import load_cases
 ROUTES = {"general_qa", "applicability", "field_check"}
 
 
+CASE_COUNT = 21  # 20 from Day 7, plus q21 (reasoning from silence) added on Day 11
+
+
 def test_golden_set_is_wellformed():
     cases = load_cases()
-    assert len(cases) == 20
-    assert len({c["id"] for c in cases}) == 20
+    assert len(cases) == CASE_COUNT
+    assert len({c["id"] for c in cases}) == CASE_COUNT
     for c in cases:
         assert c["expected_route"] in ROUTES, c["id"]
         assert c["why"].strip(), f"{c['id']} has no stated source"

@@ -14,7 +14,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import RunnableLambda
 
-from app.graph.graph import InvoiceExtract, InvoiceField, build_graph
+from app.graph.graph import Answer, InvoiceExtract, InvoiceField, build_graph
 
 TOKENS_PER_CALL = 100
 INVOICE = 'Check this invoice: {"Supplier' + chr(39) + 's Name": "ACME Sdn Bhd"}'
@@ -36,10 +36,20 @@ class FakeChat(BaseChatModel):
 
     def with_structured_output(self, schema, **kwargs):
         """The call still happens -- only the parsing is faked -- so the tokens
-        a structured node spends are still there to be metered."""
-        got = InvoiceExtract(is_invoice_data=True,
-                             fields=[InvoiceField(name="Supplier's Name",
-                                                  value="ACME")])
+        a structured node spends are still there to be metered.
+
+        Honours the schema it is handed. generate() became structured when
+        coverage turned into a field, and a fake that always returned
+        InvoiceExtract would hand it an object with no `coverage`.
+        """
+        got = {
+            "InvoiceExtract": lambda: InvoiceExtract(
+                is_invoice_data=True,
+                fields=[InvoiceField(name="Supplier's Name", value="ACME")]),
+            "Answer": lambda: Answer(
+                coverage="addressed",
+                answer="A field is missing [Guideline v4.8 §Appendix 1, p44]."),
+        }[schema.__name__]()
         return RunnableLambda(lambda x: (self.invoke(x), got)[1])
 
 
