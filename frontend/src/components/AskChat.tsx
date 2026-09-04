@@ -1,5 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage, Citation, ChatResponse } from '../types';
+import { ChatMessage, Citation, ChatResponse, SourceChunk } from '../types';
+
+// A citation the reader has opened, and what came back for it. Keyed by the
+// bracketed ref exactly as it appears, which is also what /chunk is keyed on.
+type SourceState =
+  | { status: 'loading' }
+  | { status: 'ok'; chunk: SourceChunk }
+  | { status: 'error'; error: string };
 
 interface AskChatProps {
   isHealthy: boolean;
@@ -21,6 +28,10 @@ export const AskChat: React.FC<AskChatProps> = ({
     resets_at?: string;
   } | null>(null);
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
+  // One source open at a time, identified by which answer it was opened from --
+  // the same guideline can be cited by two answers in one thread.
+  const [open, setOpen] = useState<{ row: string; ref: string } | null>(null);
+  const [sources, setSources] = useState<Record<string, SourceState>>({});
 
   const threadIdRef = useRef<string | null>(null);
   const lastSubmittedRef = useRef<string>('');
@@ -38,7 +49,37 @@ export const AskChat: React.FC<AskChatProps> = ({
     setNetworkError(null);
     setQuotaExhaustedError(null);
     setRateLimitError(null);
+    setOpen(null);
+    setSources({});
     textareaRef.current?.focus();
+  };
+
+  // Read-only and cached: a chunk is a row that was written at ingest time and
+  // does not change while the page is open, so re-opening a citation costs nothing.
+  const toggleSource = async (row: string, ref: string) => {
+    if (open && open.row === row && open.ref === ref) {
+      setOpen(null);
+      return;
+    }
+    setOpen({ row, ref });
+    if (sources[ref]) return;
+
+    setSources((prev) => ({ ...prev, [ref]: { status: 'loading' } }));
+    try {
+      const res = await fetch(`/chunk?ref=${encodeURIComponent(ref)}`);
+      const data = await res.json();
+      setSources((prev) => ({
+        ...prev,
+        [ref]: res.ok
+          ? { status: 'ok', chunk: data as SourceChunk }
+          : { status: 'error', error: data.error || 'No source text for that citation.' },
+      }));
+    } catch {
+      setSources((prev) => ({
+        ...prev,
+        [ref]: { status: 'error', error: 'Could not load the source text.' },
+      }));
+    }
   };
 
   const submitQuestion = async (questionText: string) => {
@@ -203,8 +244,37 @@ export const AskChat: React.FC<AskChatProps> = ({
     return result;
   };
 
-  // Helper: parse inline markdown bold and inline citations with deduplication
-  const renderInlineTokens = (text: string, seenCitations: Set<string>): React.ReactNode[] => {
+  // The source text for one citation, shown where it was clicked.
+  const renderSource = (ref: string) => {
+    const s = sources[ref];
+    if (!s || s.status === 'loading') {
+      return <div className="source-panel source-quiet">Loading the source…</div>;
+    }
+    if (s.status === 'error') {
+      return <div className="source-panel source-quiet">{s.error}</div>;
+    }
+    const c = s.chunk;
+    return (
+      <div className="source-panel">
+        <div className="source-head">
+          {c.doc} v{c.version} &sect;{c.section}
+          {c.title ? ` — ${c.title}` : ''}, p{c.page}
+        </div>
+        <div className="source-text">{c.content}</div>
+      </div>
+    );
+  };
+
+  // Helper: parse inline markdown bold and inline citations with deduplication.
+  // `emitted` collects the citations this paragraph actually rendered, so the
+  // expanded source lands under the paragraph that cited it and not under a later
+  // one that repeated the same ref and had it deduplicated away.
+  const renderInlineTokens = (
+    text: string,
+    seenCitations: Set<string>,
+    emitted: string[],
+    rowId: string,
+  ): React.ReactNode[] => {
     // Regex splits on either **bold** or [Citation ...]
     const TOKEN_REGEX = /(\*\*[^*]+\*\*|\[(?:(?:General\s+)?Guideline|Specific\s+Guideline|FAQ)[^\]]+\])/g;
     const parts = text.split(TOKEN_REGEX);
@@ -230,10 +300,18 @@ export const AskChat: React.FC<AskChatProps> = ({
           return null;
         }
         seenCitations.add(norm);
+        emitted.push(part);
         return (
-          <span key={idx} className="inline-citation">
+          <button
+            key={idx}
+            type="button"
+            className="inline-citation"
+            aria-expanded={open?.row === rowId && open.ref === part}
+            title="Show the source text"
+            onClick={() => toggleSource(rowId, part)}
+          >
             {part}
-          </span>
+          </button>
         );
       }
 
@@ -242,7 +320,7 @@ export const AskChat: React.FC<AskChatProps> = ({
   };
 
   // Render full formatted answer
-  const renderFormattedAnswer = (text: string) => {
+  const renderFormattedAnswer = (text: string, rowId: string) => {
     const lines = text.split(/\n\n+/);
     const seenCitations = new Set<string>();
 
@@ -274,10 +352,13 @@ export const AskChat: React.FC<AskChatProps> = ({
       }
 
       // Standard body paragraph
+      const emitted: string[] = [];
+      const nodes = renderInlineTokens(trimmed, seenCitations, emitted, rowId);
       return (
-        <p key={`p-${pIdx}`} className="answer-paragraph">
-          {renderInlineTokens(trimmed, seenCitations)}
-        </p>
+        <React.Fragment key={`p-${pIdx}`}>
+          <p className="answer-paragraph">{nodes}</p>
+          {open?.row === rowId && emitted.includes(open.ref) && renderSource(open.ref)}
+        </React.Fragment>
       );
     });
   };
@@ -337,17 +418,31 @@ export const AskChat: React.FC<AskChatProps> = ({
                   </div>
 
                   <div className="answer-body">
-                    {renderFormattedAnswer(m.content)}
+                    {renderFormattedAnswer(m.content, m.id)}
                   </div>
 
                   {dedupedCites.length > 0 && (
                     <div className="citations-block">
                       <ul className="citations-list">
-                        {dedupedCites.map((c: Citation, cIdx: number) => (
-                          <li key={cIdx} className="citation-item">
-                            {c.doc} v{c.version} &sect;{c.section}, p{c.page}
-                          </li>
-                        ))}
+                        {dedupedCites.map((c: Citation, cIdx: number) => {
+                          // Rebuilt in the shape /chunk parses, which is the shape
+                          // the answer itself uses. The server owns the pattern.
+                          const ref = `[${c.doc} v${c.version} §${c.section}, p${c.page}]`;
+                          const isOpen = open?.row === m.id && open.ref === ref;
+                          return (
+                            <li key={cIdx} className="citation-item">
+                              <button
+                                type="button"
+                                className="citation-link"
+                                aria-expanded={isOpen}
+                                onClick={() => toggleSource(m.id, ref)}
+                              >
+                                {c.doc} v{c.version} &sect;{c.section}, p{c.page}
+                              </button>
+                              {isOpen && renderSource(ref)}
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   )}

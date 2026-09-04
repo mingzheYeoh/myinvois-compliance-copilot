@@ -11,6 +11,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/chat': 'http://localhost:8000',
+      '/chunk': 'http://localhost:8000',
+      '/feedback': 'http://localhost:8000',
       '/validate': 'http://localhost:8000',
       '/health': 'http://localhost:8000',
     },

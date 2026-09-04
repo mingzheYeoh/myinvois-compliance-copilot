@@ -281,11 +281,76 @@ body {
   font-weight: 600;
 }
 
+/* Citations are buttons, not decoration: clicking one opens the source text it
+   points at. Styled to stay quiet inside a sentence -- a dotted underline reads
+   as "there is more here" without turning the answer into a field of links. */
 .inline-citation {
   font-size: 0.82em;
   color: var(--muted);
   font-weight: 400;
   margin-left: 3px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-bottom: 1px dotted var(--muted);
+}
+
+.inline-citation:hover,
+.citation-link:hover {
+  color: var(--fg);
+  border-bottom-color: var(--fg);
+}
+
+.inline-citation[aria-expanded='true'],
+.citation-link[aria-expanded='true'] {
+  color: var(--fg);
+  border-bottom-style: solid;
+}
+
+.citation-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-bottom: 1px dotted var(--muted);
+}
+
+/* The source chunk itself. Read-only, so it is set apart as a quotation rather
+   than as a panel with controls. */
+.source-panel {
+  margin: 10px 0 14px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-left: 2px solid var(--line);
+  border-radius: 0 6px 6px 0;
+}
+
+.source-head {
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+  margin-bottom: 6px;
+}
+
+.source-text {
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--muted-dark);
+  white-space: pre-wrap;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.source-quiet {
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 /* Assumption note (italic grey, set apart from answer) */

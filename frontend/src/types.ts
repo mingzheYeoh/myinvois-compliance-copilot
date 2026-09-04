@@ -16,6 +16,18 @@ export interface Citation {
   page: number;
 }
 
+// One chunk of source text, exactly as the retriever saw it. Section and page come
+// from the stored row, not from the citation, so an answer that cites the wrong
+// page shows the right one here and the mismatch is visible rather than hidden.
+export interface SourceChunk {
+  doc: string;
+  version: string;
+  section: string;
+  title: string;
+  page: number;
+  content: string;
+}
+
 export interface ChatResponse {
   answer: string;
   citations: Citation[];

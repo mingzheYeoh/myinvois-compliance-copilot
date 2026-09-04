@@ -1,7 +1,8 @@
-"""FastAPI surface: /chat, /validate, /health, and the single-page frontend.
+"""FastAPI surface: /chat, /chunk, /feedback, /validate, /health, and the frontend.
 
-/validate and /health deliberately touch no LLM, so they keep working when the
-daily token budget is spent.
+/chunk, /validate and /health deliberately touch no LLM, so they keep working when
+the daily token budget is spent -- which matters most for /chunk: the moment the
+quota runs out is exactly when someone is left holding an answer they want to check.
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ from app.budget import QuotaExhausted
 from app.graph.graph import SHORT, build_graph
 from app.rag.chain import Busy
 from app.rag.citations import parse as parse_citations
-from app.rag.retriever import latest_versions
+from app.rag.retriever import LONG, latest_versions, search_sections
 from app.tools.validate_fields import validate_fields
 
 # Local dev convenience; in a container the vars come from the environment
@@ -200,6 +201,39 @@ def report_problem(request: Request, body: FeedbackIn) -> JSONResponse:
     except Exception:
         return error(503, "Could not log that just now. Please try again shortly.")
     return JSONResponse({"status": "logged"})
+
+
+@app.get("/chunk")
+@limiter.limit("60/minute")
+def chunk(request: Request, ref: str) -> JSONResponse:
+    """The source text behind one citation. Read-only, no LLM, no quota.
+
+    The project's claim is that an answer can be checked. Until now checking meant
+    opening a 200-page PDF and finding §1.6.1(e) by hand, which nobody does, so in
+    practice the citations were decoration. This returns the chunk the retriever
+    actually used, so the check is a click.
+
+    The ref is parsed here rather than in the browser because the browser would
+    need its own copy of the citation regex, and a second copy of that regex is the
+    exact thing src/app/rag/citations.py exists to prevent. It also means page
+    ranges the model writes ("p44-p50") normalise on the way in for free.
+    """
+    found = parse_citations(ref)
+    if len(found) != 1:
+        return error(400, "That is not a single citation reference.")
+    doc, version, section, page = next(iter(found))
+    if not (short := LONG.get(doc)):
+        return error(404, "No source text is available for that citation.")
+    hits = search_sections([f"{doc} v{version} §{section}"],
+                           versions={short: version}, limit=4)
+    if not hits:
+        return error(404, "No source text is available for that citation.")
+    # Prefer the page the citation names, for a section split across chunks;
+    # otherwise the row search_sections ranked first, which is the one carrying
+    # the cited row marker.
+    hit = next((h for h in hits if h.page == int(page)), hits[0])
+    return JSONResponse({"doc": doc, "version": hit.version, "section": hit.section,
+                         "title": hit.title, "page": hit.page, "content": hit.content})
 
 
 @app.post("/validate")

@@ -274,3 +274,62 @@ def test_reporting_an_answer_from_another_thread_is_refused(client, monkeypatch)
     res = client.post("/feedback", json={"thread_id": "someone-elses-thread",
                                          "message_id": body["message_id"]})
     assert res.status_code == 404
+
+
+# --- /chunk -----------------------------------------------------------------
+
+def _hit(page: int, content: str, section: str = "1.6.1"):
+    from app.rag.retriever import Hit
+
+    return Hit("general_guideline", "4.8", section, "Exemptions", page, content,
+               1.0, None, None)
+
+
+def test_a_citation_resolves_to_the_text_it_points_at(client, monkeypatch):
+    """The claim the project makes is that answers can be checked. Checking used
+    to mean opening a 200-page PDF; this is the endpoint that makes it a click."""
+    asked: list = []
+    monkeypatch.setattr(main, "search_sections",
+                        lambda refs, versions=None, limit=2:
+                            asked.append((refs, versions)) or [_hit(15, "RM3,000,000")])
+
+    r = client.get("/chunk", params={"ref": "[Guideline v4.8 §1.6.1(e), p15]"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["content"] == "RM3,000,000"
+    assert (body["doc"], body["section"], body["page"]) == ("Guideline", "1.6.1", 15)
+    # The row marker travels with the ref: "(e)" is what makes the section lookup
+    # return the row holding RM3,000,000 rather than whichever row sorts first.
+    # The citation's own version is honoured too, so citing 4.7 does not silently
+    # serve 4.8 text under a 4.7 label.
+    assert asked == [(["Guideline v4.8 §1.6.1(e)"], {"general_guideline": "4.8"})]
+    assert not client.fake.calls  # read-only: no graph, no tokens
+
+
+def test_a_page_range_citation_still_resolves(client, monkeypatch):
+    """The model writes "p44-p50" on its own. Normalising only the data was never
+    enough -- the ref arrives from the browser exactly as the answer wrote it."""
+    monkeypatch.setattr(main, "search_sections",
+                        lambda refs, versions=None, limit=2: [_hit(44, "Field list")])
+    r = client.get("/chunk", params={"ref": "[Guideline v4.8 §Appendix 1, p44-p50]"})
+    assert r.status_code == 200
+    assert r.json()["page"] == 44
+
+
+def test_the_cited_page_wins_when_a_section_spans_chunks(client, monkeypatch):
+    monkeypatch.setattr(main, "search_sections",
+                        lambda refs, versions=None, limit=2:
+                            [_hit(32, "first row"), _hit(33, "the cited row")])
+    body = client.get("/chunk", params={"ref": "[Guideline v4.8 §3.7, p33]"}).json()
+    assert body["content"] == "the cited row"
+
+
+def test_a_citation_with_no_stored_chunk_says_so(client, monkeypatch):
+    monkeypatch.setattr(main, "search_sections", lambda refs, versions=None, limit=2: [])
+    r = client.get("/chunk", params={"ref": "[Guideline v9.9 §99.1, p1]"})
+    assert r.status_code == 404
+    assert "No source text" in r.json()["error"]
+
+
+def test_text_that_is_not_a_citation_is_rejected(client):
+    assert client.get("/chunk", params={"ref": "see the guidelines"}).status_code == 400
