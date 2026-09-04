@@ -1,0 +1,766 @@
+{
+  "date": "2026-09-04",
+  "judge": "chat-small",
+  "note": "RAGAS metric definitions, own implementation; see the module docstring.",
+  "cases": 20,
+  "scored": 17,
+  "excluded": 3,
+  "classes": {
+    "rag": 2,
+    "deterministic": 13,
+    "field_check": 2,
+    "clarifying": 1,
+    "abstention": 2
+  },
+  "applicability": {
+    "scored_by_class": {
+      "rag": [
+        "answer_relevancy",
+        "context_precision",
+        "context_recall",
+        "faithfulness"
+      ],
+      "deterministic": [
+        "answer_relevancy",
+        "faithfulness"
+      ],
+      "field_check": [
+        "answer_relevancy",
+        "faithfulness"
+      ],
+      "clarifying": [],
+      "abstention": []
+    },
+    "excluded_reasons": {
+      "clarifying": "asked for a missing input rather than answering; no claim set to ground",
+      "abstention": "correct refusal; no claims, no ground truth to recall",
+      "deterministic": "answer came from the rule engine (params.json), not from retrieved context, so retrieval metrics do not describe it",
+      "field_check": "never retrieves; grounded in the Appendix 1 field table"
+    }
+  },
+  "tokens": {
+    "answering": 83295,
+    "scoring": 127383,
+    "total": 210678
+  },
+  "headline": {
+    "faithfulness": {
+      "score": 0.922,
+      "n": 17
+    },
+    "answer_relevancy": {
+      "score": 0.806,
+      "n": 17
+    },
+    "context_precision": {
+      "score": 0.75,
+      "n": 2
+    },
+    "context_recall": {
+      "score": 1.0,
+      "n": 2
+    }
+  },
+  "retrieval_on_deterministic": {
+    "context_precision": {
+      "score": 0.882,
+      "n": 13
+    },
+    "context_recall": {
+      "score": 0.551,
+      "n": 13
+    }
+  },
+  "per_case": [
+    {
+      "id": "q01",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8108697732289633,
+        "context_precision": 0.9166666666666666,
+        "context_recall": 0.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 7,
+          "unsupported": []
+        },
+        "answer_relevancy": {
+          "generated": [
+            "What is the annual turnover or revenue threshold for exemption from issuing e-Invoice in Malaysia?",
+            "Are taxpayers with annual turnover or revenue below RM3,000,000 exempt from issuing e-Invoice, including self-billed e-Invoice?",
+            "Under what circumstances is the RM3,000,000 e-Invoice exemption lost due to shareholder, holding company, or related company/joint venture relationships?"
+          ],
+          "sims": [
+            0.881,
+            0.794,
+            0.758
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            1,
+            2,
+            4
+          ]
+        },
+        "context_recall": {
+          "sentences": 1
+        }
+      }
+    },
+    {
+      "id": "q02",
+      "class": "clarifying",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {},
+      "detail": {}
+    },
+    {
+      "id": "q03",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 0.7142857142857143,
+        "answer_relevancy": 0.6087854703267416,
+        "context_precision": 1.0,
+        "context_recall": 0.5
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 7,
+          "unsupported": [
+            "You said there is no corporate shareholder, holding company, or related company of any size.",
+            "2024 was assumed."
+          ]
+        },
+        "answer_relevancy": {
+          "generated": [
+            "Am I exempt from issuing e-Invoice if my annual turnover or revenue is less than RM3,000,000?",
+            "Does the exemption from issuing e-Invoice still apply if I have no corporate shareholder, holding company, or related company of any size?",
+            "Under the guideline, when does the exemption from issuing e-Invoice not apply because of non-individual shareholders, a holding company, or a related company/joint venture?"
+          ],
+          "sims": [
+            0.52,
+            0.675,
+            0.632
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            1,
+            2,
+            3
+          ]
+        },
+        "context_recall": {
+          "sentences": 2
+        }
+      }
+    },
+    {
+      "id": "q04",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8344622453053793,
+        "context_precision": 1.0,
+        "context_recall": 0.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 10,
+          "unsupported": []
+        },
+        "answer_relevancy": {
+          "generated": [
+            "Does a single RM12,000 sale need its own e-Invoice, or can it be consolidated?",
+            "For a transaction of RM12,000 on 4 September 2026, is an individual e-Invoice required under the guideline?",
+            "What does Specific Guideline v4.8 §3.7.2 Table 3.6 row 7 say about consolidating a single sale above RM10,000?"
+          ],
+          "sims": [
+            0.95,
+            0.815,
+            0.738
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        "context_recall": {
+          "sentences": 2
+        }
+      }
+    },
+    {
+      "id": "q05",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7482798298199972,
+        "context_precision": 1.0,
+        "context_recall": 0.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 5,
+          "unsupported": []
+        },
+        "answer_relevancy": {
+          "generated": [
+            "Can a single transaction of RM10,000 be consolidated under the guideline?",
+            "Does RM10,000 exceed the consolidation threshold in the cited guideline?",
+            "What date was assumed when evaluating the RM10,000 transaction?"
+          ],
+          "sims": [
+            0.8,
+            0.699,
+            0.746
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        "context_recall": {
+          "sentences": 2
+        }
+      }
+    },
+    {
+      "id": "q06",
+      "class": "rag",
+      "intent": "general_qa",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7413152058919271,
+        "context_precision": 1.0,
+        "context_recall": 1.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 15,
+          "unsupported": []
+        },
+        "answer_relevancy": {
+          "generated": [
+            "What is the e-Invoice SVDP and what is its purpose?",
+            "When was the e-Invoice SVDP introduced and which taxpayers or situations does it apply to?",
+            "How must previously unsubmitted consolidated e-Invoices be submitted under the e-Invoice SVDP?"
+          ],
+          "sims": [
+            0.763,
+            0.745,
+            0.716
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            1
+          ]
+        },
+        "context_recall": {
+          "sentences": 1
+        }
+      }
+    },
+    {
+      "id": "q07",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8727835416793823,
+        "context_precision": 1.0,
+        "context_recall": 1.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 13,
+          "unsupported": []
+        },
+        "answer_relevancy": {
+          "generated": [
+            "What transactions require a self-billed e-Invoice under Section 8.3?",
+            "When is a taxpayer allowed to issue a self-billed e-Invoice, and when is it not allowed?",
+            "How should self-billed e-Invoices be issued for imported goods under one foreign supplier invoice?"
+          ],
+          "sims": [
+            0.891,
+            0.892,
+            0.835
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            1,
+            2,
+            3
+          ]
+        },
+        "context_recall": {
+          "sentences": 1
+        }
+      }
+    },
+    {
+      "id": "q08",
+      "class": "field_check",
+      "intent": "field_check",
+      "chunks": 0,
+      "scores": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9213281273841858
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 36,
+          "unsupported": []
+        },
+        "answer_relevancy": {
+          "generated": [
+            "What are the mandatory fields required for an e-Invoice according to Guideline v4.8 Appendix 1?",
+            "Which e-Invoice fields are conditionally mandatory, and under what conditions are they required?",
+            "Which supplier, buyer, invoice, and product/service details must be included as mandatory fields in the e-Invoice?"
+          ],
+          "sims": [
+            0.953,
+            0.913,
+            0.898
+          ]
+        }
+      }
+    },
+    {
+      "id": "q09",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.756377120812734,
+        "context_precision": 0.8333333333333333,
+        "context_recall": 1.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 5,
+          "unsupported": []
+        },
+        "answer_relevancy": {
+          "generated": [
+            "Until what date does Phase 4 last?",
+            "What is the interim relaxation period for Phase 4 taxpayers with annual turnover or revenue up to RM5 million?",
+            "What two possible Phase 4 implementation dates are noted under the same end date?"
+          ],
+          "sims": [
+            0.842,
+            0.712,
+            0.716
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            1,
+            3
+          ]
+        },
+        "context_recall": {
+          "sentences": 1
+        }
+      }
+    },
+    {
+      "id": "q10",
+      "class": "rag",
+      "intent": "general_qa",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8757051825523376,
+        "context_precision": 0.5,
+        "context_recall": 1.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 7,
+          "unsupported": []
+        },
+        "answer_relevancy": {
+          "generated": [
+            "What is the penalty for failing to issue an e-Invoice?",
+            "Under which law or section is failure to issue an e-Invoice an offence?",
+            "What are the fine and imprisonment limits for non-compliance with e-Invoice issuance requirements?"
+          ],
+          "sims": [
+            0.943,
+            0.82,
+            0.864
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            2
+          ]
+        },
+        "context_recall": {
+          "sentences": 1
+        }
+      }
+    },
+    {
+      "id": "q11",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 0.75,
+        "answer_relevancy": 0.7646666566530863,
+        "context_precision": 0.3333333333333333,
+        "context_recall": 1.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 4,
+          "unsupported": [
+            "No self-billed e-Invoice is required for employment income."
+          ]
+        },
+        "answer_relevancy": {
+          "generated": [
+            "Is an e-Invoice required for employment income, including self-billed e-Invoice?",
+            "Is employment income exempt from e-Invoice requirements?",
+            "Does the answer say whether director fees are treated the same as employment income?"
+          ],
+          "sims": [
+            0.836,
+            0.832,
+            0.625
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            3
+          ]
+        },
+        "context_recall": {
+          "sentences": 1
+        }
+      }
+    },
+    {
+      "id": "q12",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 0.7777777777777778,
+        "answer_relevancy": 0.8375428716341654,
+        "context_precision": 1.0,
+        "context_recall": 1.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 9,
+          "unsupported": [
+            "The answer is yes.",
+            "For dividends received in Malaysia, the recipient is required to issue an e-Invoice to document proof of income for tax purposes."
+          ]
+        },
+        "answer_relevancy": {
+          "generated": [
+            "Is a company generally required to issue a self-billed e-Invoice for dividend distributions?",
+            "Which taxpayers are exempt from issuing self-billed e-Invoices on dividend distributions under the dividend rules?",
+            "For foreign profits or dividends received in Malaysia, who must issue the e-Invoice as proof of income for tax purposes?"
+          ],
+          "sims": [
+            0.922,
+            0.781,
+            0.809
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        "context_recall": {
+          "sentences": 3
+        }
+      }
+    },
+    {
+      "id": "q13",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9112871885299683,
+        "context_precision": 1.0,
+        "context_recall": 1.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 4,
+          "unsupported": []
+        },
+        "answer_relevancy": {
+          "generated": [
+            "Do zakat payments require an e-Invoice?",
+            "Is an e-Invoice, including a self-billed e-Invoice, required for Zakat?",
+            "According to Guideline v4.8 §1.6.7 on page 16, is Zakat exempt from e-Invoice requirements?"
+          ],
+          "sims": [
+            0.981,
+            0.914,
+            0.839
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            1
+          ]
+        },
+        "context_recall": {
+          "sentences": 1
+        }
+      }
+    },
+    {
+      "id": "q14",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 0.8333333333333334,
+        "answer_relevancy": 0.8976498444875082,
+        "context_precision": 1.0,
+        "context_recall": 0.6666666666666666
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 6,
+          "unsupported": [
+            "2026-09-04 was assumed as today."
+          ]
+        },
+        "answer_relevancy": {
+          "generated": [
+            "Is a company owned by a foreign diplomatic office exempt from implementing e-Invoice?",
+            "Does the exemption for foreign diplomatic offices also apply to entities they own?",
+            "If a foreign diplomatic office owns a company, must that company still implement e-Invoice according to the guideline?"
+          ],
+          "sims": [
+            0.963,
+            0.848,
+            0.882
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            1,
+            2
+          ]
+        },
+        "context_recall": {
+          "sentences": 3
+        }
+      }
+    },
+    {
+      "id": "q15",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 0.6,
+        "answer_relevancy": 0.7956725557645162,
+        "context_precision": 0.9166666666666666,
+        "context_recall": 0.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 15,
+          "unsupported": [
+            "The exemption is lost only if the taxpayer has a non-individual shareholder.",
+            "The exemption is lost only if the taxpayer has a holding company.",
+            "The exemption is lost only if the taxpayer has a related company with turnover of at least RM3,000,000.",
+            "The exemption is lost only if the taxpayer has a joint venture with turnover of at least RM3,000,000.",
+            "The answer cites Guideline v4.8 §1.6.10, p17.",
+            "2026-09-04 was assumed as today."
+          ]
+        },
+        "answer_relevancy": {
+          "generated": [
+            "Am I exempt from issuing e-Invoice if my annual turnover is RM1,500,000?",
+            "Does the e-Invoice exemption also cover self-billed e-Invoice for a taxpayer with turnover below RM3,000,000?",
+            "Under what shareholder or group-company conditions would the e-Invoice exemption be lost?"
+          ],
+          "sims": [
+            0.862,
+            0.751,
+            0.775
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            1,
+            2,
+            4
+          ]
+        },
+        "context_recall": {
+          "sentences": 2
+        }
+      }
+    },
+    {
+      "id": "q16",
+      "class": "field_check",
+      "intent": "field_check",
+      "chunks": 0,
+      "scores": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.716059943040212
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 30,
+          "unsupported": []
+        },
+        "answer_relevancy": {
+          "generated": [
+            "Is the invoice valid or invalid according to the guideline?",
+            "Why is the invoice considered invalid?",
+            "Which mandatory invoice fields are missing, and how many fields were checked versus supplied in the validation result?"
+          ],
+          "sims": [
+            0.735,
+            0.695,
+            0.718
+          ]
+        }
+      }
+    },
+    {
+      "id": "q17",
+      "class": "abstention",
+      "intent": "general_qa",
+      "chunks": 6,
+      "scores": {},
+      "detail": {}
+    },
+    {
+      "id": "q18",
+      "class": "abstention",
+      "intent": "general_qa",
+      "chunks": 6,
+      "scores": {},
+      "detail": {}
+    },
+    {
+      "id": "q19",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7901254892349243,
+        "context_precision": 0.8333333333333333,
+        "context_recall": 1.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 4,
+          "unsupported": []
+        },
+        "answer_relevancy": {
+          "generated": [
+            "What was the implementation date for FY2022 audited turnover of RM30 million under the guideline?",
+            "Which turnover/revenue category does FY2022 audited turnover of RM30 million fall under, and what is its implementation date?",
+            "What was the interim relaxation period for the phase applicable to FY2022 audited turnover of RM30 million?"
+          ],
+          "sims": [
+            0.809,
+            0.838,
+            0.723
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            1,
+            3
+          ]
+        },
+        "context_recall": {
+          "sentences": 2
+        }
+      }
+    },
+    {
+      "id": "q20",
+      "class": "deterministic",
+      "intent": "applicability",
+      "chunks": 6,
+      "scores": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8142443497975668,
+        "context_precision": 0.6388888888888888,
+        "context_recall": 0.0
+      },
+      "detail": {
+        "faithfulness": {
+          "statements": 11,
+          "unsupported": []
+        },
+        "answer_relevancy": {
+          "generated": [
+            "Which activities can never issue a consolidated e-Invoice?",
+            "Is consolidated e-Invoice allowed for sale of motor vehicles, flight tickets, private charter, construction contracts, payouts to winners, payments to agents/dealers/distributors, electricity supply, or postpaid/internet subscription and device sales?",
+            "When is consolidated e-Invoice allowed if the buyer has not requested an e-Invoice, and what exceptions apply?"
+          ],
+          "sims": [
+            0.916,
+            0.766,
+            0.761
+          ]
+        },
+        "context_precision": {
+          "relevant_ranks": [
+            2,
+            3,
+            4
+          ]
+        },
+        "context_recall": {
+          "sentences": 2
+        }
+      }
+    }
+  ]
+}

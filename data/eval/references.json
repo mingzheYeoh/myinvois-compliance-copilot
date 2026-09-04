@@ -1,0 +1,22 @@
+{
+  "q01": "Guideline v4.8 §1.6.1(e), p15: annual turnover or revenue of less than RM3,000,000.",
+  "q02": "Based on §1.6.1(e), a business that started in 2024 with RM2,000,000 turnover is below the threshold. The answer depends on the §1.6.10 carve-outs (p17): if there is a non-individual shareholder, holding company, or related company at RM3,000,000, the exemption is removed. If that information is not provided, the correct response is to ask for it rather than give a date.",
+  "q03": "If your business started in 2024 and has turnover below RM3,000,000, you are exempt from issuing e-Invoice under §1.6.1(e) (p.15), unless a §1.6.10 carve-out applies. In that case, there is no implementation date.",
+  "q04": "No. Under Specific Guideline §3.7.2, Table 3.6, row 7 (p.33), any single transaction exceeding RM10,000 must have its own e-Invoice, effective 1 January 2026. A RM12,000 sale exceeds RM10,000, so it cannot be consolidated.",
+  "q05": "Table 3.6 row 7 states \"exceeding RM10,000\". Therefore, a sale of exactly RM10,000 does not exceed RM10,000 and may still be consolidated.",
+  "q06": "The Special Voluntary Disclosure Programme (SVDP) for e-Invoice runs from 7 July 2026 until 31 December 2027.",
+  "q07": "A self-billed e-Invoice is required for payments to agents, dealers, or distributors; goods or services from foreign suppliers; and profit distribution, among others, as stated in Specific Guideline §8.3, p. 63.",
+  "q08": "Guideline Appendix 1, pp. 44-52: the e-Invoice mandatory fields are the 27 fields listed in data/rules/invoice_fields.json.",
+  "q09": "Phase 4 is relaxed until 31 December 2027.",
+  "q10": "Under Section 120(1)(d) of the Income Tax Act 1967, the penalty for not issuing an e-Invoice is a fine of not less than RM200 and not more than RM20,000, or imprisonment not exceeding 6 months, or both, for each non-compliance.",
+  "q11": "No. An e-Invoice, including a self-billed e-Invoice, is not required for employment income under Guideline §1.6.7(a), p16, regardless of the employer’s own e-Invoice obligation.",
+  "q12": "An e-Invoice is not required for a distribution of dividend in the specific circumstances in Guideline §1.6.7(d) (p.16), which cross-refers to Specific Guideline Section 11. The relevant circumstances are §11.1.2 (payers exempt from issuing) and §11.1.4 (dividends in scope). Outside those circumstances, §8.3(c) requires a self-billed e-Invoice for profit distribution.",
+  "q13": "No. Zakat payments do not require an e-Invoice.",
+  "q14": "No. Under Guideline §1.6.5 (p. 16), the exemption in Section 1.6.1 applies only to the specified persons. Any entities owned by those persons are still required to implement e-Invoice in accordance with the e-Invoice implementation timeline in Section 1.5. The exemption is not inherited; the entity only retains its own Section 1.6.1(e) turnover exemption, if applicable.",
+  "q15": "No. Under v4.8 §1.6.1(e), businesses with annual turnover below RM3,000,000 are exempt, so a company with RM1,500,000 turnover and no corporate shareholder, holding company, or related company is not required to issue e-Invoices. The §1.6.10 carve-out does not apply.",
+  "q16": "Guideline Appendix 1, p44: Buyer's TIN (field 4) is mandatory and is absent from this invoice.",
+  "q17": "The corpus does not contain information on the corporate income tax rate for SMEs in Malaysia.",
+  "q18": "No. SST returns are a Royal Malaysian Customs matter and are not covered in the e-Invoice Guideline, Specific Guideline, or FAQ.",
+  "q19": "Guideline §1.5 Table 1.1, p12: businesses with FY2022 audited turnover of more than RM25 million and up to RM100 million are in Phase 2, with an implementation date of 1 January 2025. The table is keyed on FY2022 turnover, not current turnover (§1.5, p13).",
+  "q20": "Specific Guideline §3.7.2, Table 3.6 (pp. 32–33): a consolidated e-Invoice is not allowed for sale of motor vehicles, flight tickets and private charter, construction contracts, betting and gaming pay-outs, and payments to agents/dealers/distributors. From 1 January 2026, this also includes electricity and telecommunication."
+}
