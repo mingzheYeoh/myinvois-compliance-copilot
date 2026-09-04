@@ -73,9 +73,20 @@ wait_ready() {
 }
 
 say "providers"
-az provider register -n Microsoft.ContainerRegistry --wait
-az provider register -n Microsoft.App --wait
-az provider register -n Microsoft.OperationalInsights --wait
+# Registering a provider is a SUBSCRIPTION-scope action, and CI authenticates as
+# a service principal scoped to this resource group -- it can neither read nor
+# change provider state. Registration is a one-time setup step anyway, so this
+# only acts when it positively sees an unregistered provider. If one really is
+# missing, the create that needs it fails immediately afterwards with a clear
+# error, which is a better failure than an AuthorizationFailed here on a laptop
+# run that had nothing to do.
+for p in Microsoft.ContainerRegistry Microsoft.App Microsoft.OperationalInsights; do
+    case "$(az provider show -n "$p" --query registrationState -o tsv 2>/dev/null || true)" in
+        Registered) echo "  $p registered" ;;
+        "")        echo "  $p unreadable with this credential; assuming registered" ;;
+        *)          az provider register -n "$p" --wait ;;
+    esac
+done
 
 say "container registry ($ACR, Basic ~5 USD/mo)"
 have acr show -n "$ACR" -g "$RG" ||
