@@ -21,6 +21,7 @@ export interface ChatResponse {
   citations: Citation[];
   route: string | null;
   thread_id: string;
+  message_id: string;
   models?: Record<string, number>;
   tokens?: number;
 }
@@ -59,6 +60,9 @@ export interface ChatMessage {
   citations?: Citation[];
   tokens?: number;
   models?: Record<string, number>;
+  messageId?: string;
+  // undefined = not reported, 'sending' | 'logged' | 'failed' once clicked.
+  reported?: 'sending' | 'logged' | 'failed';
   isError?: boolean;
   errorDetail?: ChatError;
   timestamp: string;

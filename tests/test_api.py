@@ -232,3 +232,45 @@ def test_determination_dates_are_rendered_the_way_the_guidelines_write_them():
     assert _dates_as_prose("date is 2025-01-01.") == "date is 1 January 2025."
     assert _dates_as_prose("until 2027-12-31") == "until 31 December 2027"
     assert _dates_as_prose("p32-33 v4.8 row 7") == "p32-33 v4.8 row 7"
+
+
+# --- /feedback --------------------------------------------------------------
+
+def test_reporting_an_answer_stores_what_the_server_already_knows(client, monkeypatch):
+    """One click carries no content: the body names an answer and nothing else,
+    so there is no free text to moderate and no way to submit a complaint."""
+    stored: list[dict] = []
+    monkeypatch.setattr("app.feedback.record", lambda e: stored.append(e) or True)
+
+    chat = client.post("/chat", json={"message": "How long is the Phase 4 relaxation?"})
+    body = chat.json()
+    assert body["message_id"], "an answer must be identifiable to be reportable"
+
+    res = client.post("/feedback", json={"thread_id": body["thread_id"],
+                                         "message_id": body["message_id"]})
+    assert res.status_code == 200
+    assert res.json() == {"status": "logged"}
+
+    (entry,) = stored
+    assert entry["question"] == "How long is the Phase 4 relaxation?"
+    assert entry["answer"] == body["answer"]
+    assert entry["route"] == "applicability"
+    assert entry["citations"] == body["citations"]
+    assert set(entry) == {"thread_id", "message_id", "question", "answer",
+                          "citations", "route", "model", "run_id"}
+
+
+def test_reporting_an_expired_answer_says_so_rather_than_accepting_it(client):
+    """The cache is in-process, so a replica restart loses it. Silently returning
+    200 would tell the user their report landed when nothing was written."""
+    res = client.post("/feedback", json={"thread_id": "t1", "message_id": "gone"})
+    assert res.status_code == 404
+    assert "no longer available" in res.json()["error"]
+
+
+def test_reporting_an_answer_from_another_thread_is_refused(client, monkeypatch):
+    monkeypatch.setattr("app.feedback.record", lambda e: True)
+    body = client.post("/chat", json={"message": "What is the threshold?"}).json()
+    res = client.post("/feedback", json={"thread_id": "someone-elses-thread",
+                                         "message_id": body["message_id"]})
+    assert res.status_code == 404

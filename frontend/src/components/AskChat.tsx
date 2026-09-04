@@ -107,6 +107,7 @@ export const AskChat: React.FC<AskChatProps> = ({
         id: `a-${Date.now()}`,
         role: 'assistant',
         content: chatData.answer,
+        messageId: chatData.message_id,
         route: chatData.route,
         citations: chatData.citations || [],
         tokens: chatData.tokens,
@@ -160,6 +161,32 @@ export const AskChat: React.FC<AskChatProps> = ({
     if (r.includes('applicab')) return 'Applicability';
     if (r.includes('field')) return 'Field Check';
     return 'General';
+  };
+
+  // One click, no form. The server already holds the question, answer, citations,
+  // route, model and LangSmith run id for this answer, so nothing needs collecting
+  // from the user -- which is also why there is no free-text box to moderate.
+  const reportProblem = async (rowId: string, messageId: string) => {
+    setMessages((prev) =>
+      prev.map((x) => (x.id === rowId ? { ...x, reported: 'sending' as const } : x)),
+    );
+    let state: 'logged' | 'failed' = 'failed';
+    try {
+      const res = await fetch('/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          thread_id: threadIdRef.current,
+          message_id: messageId,
+        }),
+      });
+      if (res.ok) state = 'logged';
+    } catch {
+      state = 'failed';
+    }
+    setMessages((prev) =>
+      prev.map((x) => (x.id === rowId ? { ...x, reported: state } : x)),
+    );
   };
 
   // Helper: deduplicate bottom citations list
@@ -322,6 +349,25 @@ export const AskChat: React.FC<AskChatProps> = ({
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {m.messageId && (
+                    <div className="report-row">
+                      {m.reported === 'logged' ? (
+                        <span className="report-done">Thanks - logged.</span>
+                      ) : m.reported === 'failed' ? (
+                        <span className="report-done">Could not log that.</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="report-link"
+                          disabled={m.reported === 'sending'}
+                          onClick={() => reportProblem(m.id, m.messageId!)}
+                        >
+                          Report a problem
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

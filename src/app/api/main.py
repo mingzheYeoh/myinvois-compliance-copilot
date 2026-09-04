@@ -9,6 +9,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+from collections import OrderedDict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -18,13 +19,14 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from langchain_core.callbacks import UsageMetadataCallbackHandler
+from langchain_core.tracers.context import collect_runs
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
-from app import budget
+from app import budget, feedback
 from app.budget import QuotaExhausted
 from app.graph.graph import SHORT, build_graph
 from app.rag.chain import Busy
@@ -40,6 +42,15 @@ load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 # block, and blocking inside an async handler stalls the whole event loop and
 # serialises every other request. FastAPI runs sync handlers in a threadpool.
 MAX_INPUT_CHARS = 2_000
+# What a "Report a problem" click needs, held until someone clicks. Bounded and
+# in-process on purpose: nothing about an answer is written down unless a user
+# actually reports it. It shares the fate of the conversation memory beside it --
+# MemorySaver is in-process too -- so an answer stays reportable while the replica
+# that produced it is alive, which is the window a reader clicks in. After a
+# scale-to-zero the thread is gone anyway, and /feedback says so rather than
+# silently accepting a report it cannot store.
+RECENT_MAX = 200
+_recent: OrderedDict[str, dict[str, Any]] = OrderedDict()
 STATIC = Path(__file__).resolve().parents[1] / "static"
 STATIC.mkdir(parents=True, exist_ok=True)
 
@@ -47,6 +58,7 @@ STATIC.mkdir(parents=True, exist_ok=True)
 async def lifespan(_: FastAPI):
     with contextlib.suppress(Exception):  # health reports db: fail if this fails
         budget.init()
+        feedback.init()
     yield
 
 
@@ -66,6 +78,11 @@ def graph():
 class ChatIn(BaseModel):
     message: str
     thread_id: str | None = None
+
+
+class FeedbackIn(BaseModel):
+    thread_id: str
+    message_id: str
 
 
 class ValidateIn(BaseModel):
@@ -111,9 +128,13 @@ def chat(request: Request, body: ChatIn) -> JSONResponse:
     thread_id = body.thread_id or os.urandom(8).hex()
     usage = UsageMetadataCallbackHandler()
     try:
-        out = graph().invoke(
-            {"question": body.message},
-            config={"configurable": {"thread_id": thread_id}, "callbacks": [usage]})
+        # collect_runs captures the LangSmith run id, which is the whole point of
+        # the feedback table: a report without it is an anecdote, with it it is an
+        # execution tree. Empty when tracing is off, and that is not an error.
+        with collect_runs() as runs:
+            out = graph().invoke(
+                {"question": body.message},
+                config={"configurable": {"thread_id": thread_id}, "callbacks": [usage]})
     except QuotaExhausted:
         return error(429, "The daily question quota is used up. Invoice validation "
                           "still works and needs no quota.",
@@ -142,15 +163,43 @@ def chat(request: Request, body: ChatIn) -> JSONResponse:
         {"doc": d, "version": v, "section": sec, "page": int(pg)}
         for d, v, sec, pg in parse_citations(answer)
     ]
+    sorted_cites = sorted(citations, key=lambda c: (c["doc"], c["page"]))
+    message_id = os.urandom(8).hex()
+    _recent[message_id] = {
+        "thread_id": thread_id, "message_id": message_id, "question": body.message,
+        "answer": answer, "citations": sorted_cites, "route": out.get("intent"),
+        "model": next(iter(usage.usage_metadata), None),
+        "run_id": str(runs.traced_runs[0].id) if runs.traced_runs else None,
+    }
+    while len(_recent) > RECENT_MAX:
+        _recent.popitem(last=False)
+
     return JSONResponse({
         "answer": answer,
-        "citations": sorted(citations, key=lambda c: (c["doc"], c["page"])),
+        "citations": sorted_cites,
         "route": out.get("intent"),
         "thread_id": thread_id,
+        "message_id": message_id,
         "models": {m: u.get("total_tokens", 0)
                    for m, u in usage.usage_metadata.items()},
         "tokens": spent,
     })
+
+
+@app.post("/feedback")
+@limiter.limit("20/minute")
+def report_problem(request: Request, body: FeedbackIn) -> JSONResponse:
+    """One click, no form. The body names an answer; the server already knows the
+    rest, so there is no free text to moderate and no way to submit a complaint."""
+    entry = _recent.get(body.message_id)
+    if not entry or entry["thread_id"] != body.thread_id:
+        return error(404, "That answer is no longer available to report. Reports "
+                          "can only be filed while the conversation is still open.")
+    try:
+        feedback.record(entry)  # a second click is the same report, not a new one
+    except Exception:
+        return error(503, "Could not log that just now. Please try again shortly.")
+    return JSONResponse({"status": "logged"})
 
 
 @app.post("/validate")
