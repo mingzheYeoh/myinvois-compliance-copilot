@@ -11,7 +11,21 @@ See [PLAN.md](PLAN.md) for the full architecture and two-week build plan.
 
 ## Status
 
-Day 1 of 14 — ingestion only. No LangChain/LangGraph code yet.
+**Day 10 of 14 — live.** <https://myinvois-api.ambitiousbush-8ab23d9e.southeastasia.azurecontainerapps.io>
+
+| | |
+|---|---|
+| Corpus | 343 chunks — 71 Guideline v4.8, 133 Specific Guideline v4.8, 139 FAQ 2026-05-05 |
+| Graph | 3 intents (general QA / applicability / field check) with a corrective-RAG retry loop |
+| Rule engine | Deterministic; decides every date, threshold and phase. The LLM never decides an outcome |
+| Golden set | 20/20 on Azure (`uv run python scripts/eval.py`) |
+| RAGAS | Faithfulness 0.922, answer relevancy 0.806 (n=17 of 20; see [Evaluation](#evaluation-ragas-2026-09-04)) |
+| Latency | P50 5.7s / 3,850 tokens warm; ~34s cold start at min-replicas 0 |
+| Serving | Azure Container Apps + Azure PostgreSQL 16 (pgvector 0.8.2), 565MB image, scale-to-zero |
+| Models | Azure OpenAI primary, Groq fallback; bge-small embeddings baked into the image |
+| CI | GitHub Actions: 96 tests + ruff → ACR build → deploy. The test job needs no secrets |
+
+Remaining: Day 11 fix what evaluation exposed, 12 documentation, 13 user testing, 14 buffer.
 
 ## How to run locally
 
@@ -102,12 +116,16 @@ version-parameterised rule engine.
 > Always confirm the version string on page 1 after fetching — v4.8 contains
 > `RM3,000,000` and no `RM1,000,000`.
 
-## Known limitations (Day 1)
+## Known limitations
 
 - Six General Guideline headings have almost no extractable text because their content is
   a figure or table; they are flagged as `THIN SECTIONS` on every run. Table extraction is
   not implemented.
 - Source PDFs are gitignored (large, re-downloadable); `manifest.json` is tracked.
+- Retrieval is weaker than the golden set suggests. RAGAS context recall is 0.551 on
+  the 13 cases the rule engine answers, and 0.00 on five of them: the deterministic
+  block supplies the figure and retrieval never surfaces the table row holding it.
+  Day 11 targets this.
 
 ## Frontend
 
