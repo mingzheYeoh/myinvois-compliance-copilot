@@ -163,4 +163,12 @@ URL="https://$(arm get "containerApps/$APP" \
     --query properties.configuration.ingress.fqdn -o tsv)"
 say "deployed $IMAGE"
 echo "$URL"
+# GitHub builds a Deployment record from a step output, which is what puts the
+# live link on the repo home page and beside each commit. Written before the
+# health check so a failed check still records where to go and look. Plain if,
+# not [ ] && ..., because a false test on the last line would exit non-zero
+# under set -e and fail the job after a successful deploy.
+if [ -n "${GITHUB_OUTPUT:-}" ]; then
+    echo "url=$URL" >> "$GITHUB_OUTPUT"
+fi
 curl -fsS --max-time 300 "$URL/health"; echo

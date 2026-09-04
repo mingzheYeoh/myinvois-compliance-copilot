@@ -28,7 +28,12 @@ jobs:
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment: production
+    environment:
+      name: production
+      # Resolved by deploy.sh from the container app's real ingress FQDN; the
+      # literal is only a fallback for a run that fails before that point.
+      url: ${{ steps.deploy.outputs.url ||
+        'https://myinvois-api.ambitiousbush-8ab23d9e.southeastasia.azurecontainerapps.io' }}
     steps:
       - uses: actions/checkout@v4
       - uses: azure/login@v2
@@ -36,7 +41,8 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       # deploy.sh is the same script used from a laptop; there is no second,
       # drifting copy of the deployment steps living in this file.
-      - run: bash deploy/azure/deploy.sh
+      - id: deploy
+        run: bash deploy/azure/deploy.sh
         env:
           TAG: ${{ github.sha }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
