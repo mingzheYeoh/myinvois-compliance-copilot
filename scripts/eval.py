@@ -21,6 +21,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -35,6 +36,21 @@ load_dotenv(ROOT / ".env")
 from ask import CITE, norm  # noqa: E402
 
 GOLDEN = ROOT / "data" / "golden" / "questions.yaml"
+ABSTENTION = "not covered in the guidelines"
+
+
+def classify(state: dict[str, Any], answer: str) -> str:
+    det = state.get("determination") or {}
+    if ABSTENTION in answer.lower():
+        return "abstention"
+    if det.get("blocking"):
+        return "clarifying"
+    if state.get("intent") == "field_check":
+        return "field_check"
+    if det.get("reasons"):
+        return "deterministic"
+    return "rag"
+
 
 # MEASURED: a raw call returns x-ratelimit-limit-tokens 8000 with
 # x-ratelimit-reset-tokens in *milliseconds*, so the TPM ceiling is a bucket
@@ -84,6 +100,10 @@ class Result:
     answer: str = ""
     tokens: int = 0
     secs: float = 0.0
+    # What produced the answer, and whether the corrective-RAG loop ran. An
+    # average over 21 cases hides which of the two a token increase came from.
+    kind: str = "-"
+    retries: int = 0
 
     @property
     def ok(self) -> bool:
@@ -202,6 +222,8 @@ def run_case(graph, case: dict) -> Result:
         res.secs = time.perf_counter() - started
     res.answer = out.get("answer", "")
     res.actual_route = out.get("intent", "-")
+    res.retries = int(out.get("retry_count", 0) or 0)
+    res.kind = classify(out, res.answer)
     res.citations = citations(res.answer)
     res.problems = check(case, res.answer, res.actual_route, res.citations)
     return res
@@ -256,6 +278,7 @@ def table(results: list[Result]) -> None:
                 print(f"    answer: {' '.join(r.answer.split())[:300]}")
             print()
     ran = [r for r in results if r.secs]
+    _per_class(results)
     print(f"{len(results) - len(failed)}/{len(results)} passed, "
           f"{sum(r.tokens for r in results)} tokens spent")
     if ran:
@@ -264,6 +287,47 @@ def table(results: list[Result]) -> None:
               f"mean {statistics.mean(r.secs for r in ran):.2f}s / "
               f"{statistics.mean(r.tokens for r in ran):.0f} tokens "
               f"over {len(ran)} run(s)")
+
+
+def _per_class(results: list[Result]) -> None:
+    """Cost broken out by what produced the answer, and by whether it retried.
+
+    A single mean cannot tell a flat tax from a concentrated one: if the increase
+    sits in the cases that re-run retrieval, it is the corrective-RAG loop being
+    exercised more often, which is a different trade from every answer costing
+    more. Baseline is the Day 10 per-case cost, when it is on disk.
+    """
+    ran = [r for r in results if r.tokens]
+    if not ran:
+        return
+    base: dict[str, int] = {}
+    cache = ROOT / "data" / "eval" / "run-cache.json"
+    if cache.exists():
+        import json
+        base = {k: v.get("tokens", 0)
+                for k, v in json.loads(cache.read_text(encoding="utf-8")).items()}
+
+    print("\n--- token cost by class ---")
+    print(f"{'class':14}{'n':>3}{'mean tok':>10}{'day10':>8}{'delta':>8}   retried")
+    for kind in ("rag", "deterministic", "field_check", "clarifying", "abstention", "-"):
+        rows = [r for r in ran if r.kind == kind]
+        if not rows:
+            continue
+        mean = statistics.mean(r.tokens for r in rows)
+        was = [base[r.id] for r in rows if r.id in base]
+        prev = statistics.mean(was) if was else 0
+        delta = f"{mean - prev:+.0f}" if was else "new"
+        retried = sum(1 for r in rows if r.retries)
+        print(f"{kind:14}{len(rows):>3}{mean:>10.0f}"
+              f"{(f'{prev:.0f}' if was else '-'):>8}{delta:>8}   {retried}/{len(rows)}")
+
+    loop = [r for r in ran if r.retries]
+    flat = [r for r in ran if not r.retries]
+    if loop and flat:
+        print(f"\nretried the corrective-RAG loop: {len(loop)} case(s), "
+              f"mean {statistics.mean(r.tokens for r in loop):.0f} tok")
+        print(f"answered first time            : {len(flat)} case(s), "
+              f"mean {statistics.mean(r.tokens for r in flat):.0f} tok")
 
 
 def main() -> int:

@@ -45,7 +45,14 @@ from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(ROOT / ".env")
 
-from eval import DailyQuotaGone, _invoke, charge, load_cases, pace  # noqa: E402
+from eval import (  # noqa: E402
+    DailyQuotaGone,
+    _invoke,
+    charge,
+    classify,
+    load_cases,
+    pace,
+)
 from langchain_core.callbacks import UsageMetadataCallbackHandler  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
@@ -61,7 +68,6 @@ from app.rag.retriever import _embedder  # noqa: E402
 OUT_DIR = ROOT / "data" / "eval"
 RUN_CACHE = OUT_DIR / "run-cache.json"
 REFERENCES = OUT_DIR / "references.json"
-ABSTENTION = "not covered in the guidelines"
 
 
 # --- classification ---------------------------------------------------------
@@ -98,19 +104,6 @@ WHY_PARTIAL = {
                      "retrieved context, so retrieval metrics do not describe it",
     "field_check": "never retrieves; grounded in the Appendix 1 field table",
 }
-
-
-def classify(state: dict[str, Any], answer: str) -> str:
-    det = state.get("determination") or {}
-    if ABSTENTION in answer.lower():
-        return "abstention"
-    if det.get("blocking"):
-        return "clarifying"
-    if state.get("intent") == "field_check":
-        return "field_check"
-    if det.get("reasons"):
-        return "deterministic"
-    return "rag"
 
 
 def grounding(state: dict[str, Any], contexts: list[str]) -> list[str]:

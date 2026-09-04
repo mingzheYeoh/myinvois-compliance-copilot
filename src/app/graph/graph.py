@@ -228,6 +228,10 @@ Formatting and Typography Rules:
   was assumed), state that assumption in a separate paragraph at the end: "Note: no transaction
   date was given, so [date] (today) was assumed." This is an operational note, NOT guideline
   content, and must NEVER carry a citation.
+- Carry across every statutory reference the material names -- the Act and its
+  section number ("Section 120 of the Income Tax Act 1967"), not only the figure
+  it carries. A penalty without the provision it comes from cannot be looked up,
+  and looking it up is the whole point of a cited answer.
 - Do not add a qualifier the source does not carry. "only if", "only when", "always",
   "never", "in all cases" and "solely" turn a list of conditions into an exhaustive
   one and a rule into an absolute. Write them when the material writes them, and not
