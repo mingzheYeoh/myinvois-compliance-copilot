@@ -425,7 +425,11 @@ def main() -> int:
         "per_case": scored,
     }
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    stem = OUT_DIR / f"ragas-{report['date']}"
+    # The judge is part of the filename, not just a field inside it. Two judges
+    # scoring the same day would otherwise overwrite each other, and so would a
+    # before/after pair run on one day -- which is exactly what Day 11 does.
+    judge_tag = re.sub(r"[^a-z0-9]+", "-", llm_name(llm).lower()).strip("-")
+    stem = OUT_DIR / f"ragas-{report['date']}-{judge_tag}"
     stem.with_suffix(".json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     md = markdown(report)
