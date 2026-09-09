@@ -118,6 +118,45 @@ fixtures for the version-parameterised rule engine.
 > Always confirm the version string on page 1 after fetching — v4.8 contains
 > `RM3,000,000` and no `RM1,000,000`.
 
+## Verifying an answer
+
+The project's claim is that an answer can be checked. Until Day 11, checking meant
+opening a 200-page PDF and finding §1.6.1(e) by hand — which nobody does, so in practice
+the citations were decoration.
+
+Every citation is now a button, inline in the answer and in the list beneath it. Clicking
+one expands the stored source chunk in place, with its document, version, section and
+page. `GET /chunk?ref=<citation>` re-reads a row the ingest already wrote: read-only, no
+LLM call, and it keeps working after the daily quota is spent — which is exactly when
+someone is left holding an answer they want to check.
+
+Two details that matter more than they look:
+
+- **The ref is parsed server-side.** The browser sends the bracketed citation text
+  verbatim and never learns what a citation looks like, so there is no second copy of the
+  regex that `src/app/rag/citations.py` exists to prevent. Page ranges the model writes on
+  its own ("p44-p50") normalise on the way in for free.
+- **The panel shows the section and page of the row that was actually stored**, not the
+  ones the answer wrote. A citation pointing at the wrong page shows the right one, so the
+  mismatch is visible instead of hidden.
+
+### Reporting a wrong answer
+
+There is one "Report a problem" link under each answer, and no rating widget. The absence
+is the deliberate part.
+
+A user asking whether they must issue an e-Invoice cannot judge whether the answer is
+correct — that is *why* they are asking. A satisfaction or accuracy rating would therefore
+measure how plausible an answer *feels*, which is the failure mode Days 2–4 were spent
+removing: a fluent, confident, wrong answer would score well, and a correct "the
+guidelines do not address this" would score badly.
+
+So the only channel is one click that says *this is wrong*. It carries no free text and no
+user identifier — nothing to moderate, nothing to leak — and the server already holds the
+question, answer, citations, route, model and LangSmith run id. `scripts/feedback.py`
+lists recent reports with their trace URL, so a complaint becomes an execution tree, and
+from there a golden case.
+
 ## Known limitations
 
 - **The golden set and RAGAS disagree about Day 11, and the disagreement is unresolved.**
