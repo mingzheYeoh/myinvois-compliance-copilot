@@ -33,7 +33,7 @@ from app.graph.graph import SHORT, build_graph
 from app.rag.chain import Busy
 from app.rag.citations import parse as parse_citations
 from app.rag.retriever import LONG, latest_versions, search_sections
-from app.tools.validate_fields import validate_fields
+from app.tools.validate_fields import appendix_page, validate_fields
 
 # Local dev convenience; in a container the vars come from the environment
 # and load_dotenv is a no-op.
@@ -222,6 +222,12 @@ def chunk(request: Request, ref: str) -> JSONResponse:
     if len(found) != 1:
         return error(400, "That is not a single citation reference.")
     doc, version, section, page = next(iter(found))
+    # Appendix 1 is cited by the field checker, which reads the table from
+    # data/rules rather than from the corpus, so there is no chunk to find.
+    if doc == "Guideline" and section.startswith("Appendix 1"):
+        if rows := appendix_page(int(page)):
+            return JSONResponse(rows)
+        return error(404, "No source text is available for that citation.")
     if not (short := LONG.get(doc)):
         return error(404, "No source text is available for that citation.")
     hits = search_sections([f"{doc} v{version} §{section}"],

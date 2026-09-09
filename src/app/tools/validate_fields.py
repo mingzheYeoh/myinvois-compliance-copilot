@@ -94,6 +94,35 @@ def validate_fields(invoice: dict[str, Any]) -> FieldReport:
     return report
 
 
+def appendix_page(page: int) -> dict[str, Any] | None:
+    """The Appendix 1 rows printed on one page, rendered for reading.
+
+    Appendix 1 is the one thing this project cites that is not in the chunk
+    corpus -- the field table is read from data/rules, so /chunk had nothing
+    behind these citations and opening one was a dead click. Rendering the rows
+    from the same table the checker consulted keeps "every citation can be
+    opened" true, and shows the reader what actually decided the answer rather
+    than prose that merely describes it.
+
+    The version reported is the table's own, not the citation's, so a stale
+    citation shows the version it really got -- the same rule the chunk path
+    follows for section and page.
+    """
+    doc = _table()
+    src = doc["_source"]
+    rows = [f for f in doc["fields"] if f["page"] == page]
+    if not rows:
+        return None
+    lines = [
+        f"{f['no']}. {f['name']} [{f['status']}"
+        + (f", {f['condition']}" if f["condition"] else "") + "]"
+        + (f"\n    {f['description']}" if f.get("description") else "")
+        for f in rows
+    ]
+    return {"doc": "Guideline", "version": src["version"], "section": src["section"],
+            "title": src["table"], "page": page, "content": "\n".join(lines)}
+
+
 def field_list(status: str = "mandatory") -> list[FieldIssue]:
     """The Appendix 1 rows of a given status, for "what fields do I need?".
 

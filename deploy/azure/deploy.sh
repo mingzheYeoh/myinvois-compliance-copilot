@@ -46,7 +46,17 @@ done
 # along into production, which takes budget.py's 150,000 default.
 unset DAILY_TOKEN_BUDGET
 
-SUB=$(az account show --query id -o tsv)
+# The CLI's active subscription is not stable. It silently flipped to a different
+# one between sessions, and every ARM call then failed with ResourceGroupNotFound
+# against a subscription that holds none of this. AZURE_SUBSCRIPTION_ID pins it;
+# without it the active one is still used, but the preflight below says so at the
+# top instead of letting the run die halfway through on a 404.
+SUB="${AZURE_SUBSCRIPTION_ID:-$(az account show --query id -o tsv)}"
+az group show -n "$RG" --subscription "$SUB" >/dev/null 2>&1 || {
+    echo "resource group $RG not found in subscription $SUB" >&2
+    echo "set AZURE_SUBSCRIPTION_ID, or: az account set --subscription <id>" >&2
+    exit 1
+}
 # The ARM id and the request URL are not interchangeable: managedEnvironmentId
 # must be the /subscriptions/... path, and ARM rejects the https:// form.
 RES="/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.App"

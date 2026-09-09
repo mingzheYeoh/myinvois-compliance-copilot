@@ -333,3 +333,28 @@ def test_a_citation_with_no_stored_chunk_says_so(client, monkeypatch):
 
 def test_text_that_is_not_a_citation_is_rejected(client):
     assert client.get("/chunk", params={"ref": "see the guidelines"}).status_code == 400
+
+
+def test_appendix_1_citations_resolve_from_the_field_table(client):
+    """Appendix 1 is the one thing the project cites that was never ingested as
+    chunks -- the checker reads it from data/rules -- so opening one of its
+    citations was a dead click. It is served from the same table the checker used."""
+    r = client.get("/chunk", params={"ref": "[Guideline v4.8 §Appendix 1, p44]"})
+    assert r.status_code == 200
+    body = r.json()
+    assert (body["doc"], body["section"], body["page"]) == ("Guideline", "Appendix 1", 44)
+    assert "Supplier's TIN" in body["content"]
+    assert "mandatory" in body["content"]
+    assert not client.fake.calls  # still read-only: no graph, no tokens
+
+
+def test_an_appendix_page_range_resolves_to_its_first_page(client):
+    """The model writes the whole span: "[Guideline v4.8 §Appendix 1, p44-p50]"."""
+    r = client.get("/chunk", params={"ref": "[Guideline v4.8 §Appendix 1, p44-p50]"})
+    assert r.status_code == 200
+    assert r.json()["page"] == 44
+
+
+def test_an_appendix_page_with_no_rows_is_a_404_not_an_empty_panel(client):
+    r = client.get("/chunk", params={"ref": "[Guideline v4.8 §Appendix 1, p1]"})
+    assert r.status_code == 404
