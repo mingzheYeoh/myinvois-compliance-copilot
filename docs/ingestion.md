@@ -58,6 +58,14 @@ work, because the guideline body never writes its own section numbers. `search_s
 looks the section up directly, preferring the cited row: `§1.6.1(e)` returns the row
 holding RM3,000,000 rather than row (a) or a 38-character heading.
 
+That fix was proposed on a premise that turned out to be wrong, which is worth recording
+because the two framings lead to opposite fixes. The theory was that RM3,000,000 was
+missing from the corpus. It was not — it had been at §1.6.1(e), p15 the whole time, and
+the citation already resolved. The defect was **ranking**: that chunk was not in the top
+20 for *what is the exemption threshold*, because the guideline never writes the word
+"threshold" while the FAQ does. Missing data would have called for a re-ingest; bad
+ranking called for pinning. Row-level chunking alone did not fix it either.
+
 ## Fetching the source PDFs
 
 Step 4 of [running locally](../README.md#how-to-run-locally), in PowerShell:
