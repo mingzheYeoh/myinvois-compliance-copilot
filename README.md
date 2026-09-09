@@ -11,21 +11,21 @@ See [PLAN.md](PLAN.md) for the full architecture and two-week build plan.
 
 ## Status
 
-**Day 10 of 14 — live.** <https://myinvois-api.ambitiousbush-8ab23d9e.southeastasia.azurecontainerapps.io>
+**Day 11 of 14 — live.** <https://myinvois-api.ambitiousbush-8ab23d9e.southeastasia.azurecontainerapps.io>
 
 | | |
 |---|---|
-| Corpus | 343 chunks — 71 Guideline v4.8, 133 Specific Guideline v4.8, 139 FAQ 2026-05-05 |
+| Corpus | 420 chunks — 86 Guideline v4.8, 194 Specific Guideline v4.8, 140 FAQ 2026-05-05 |
 | Graph | 3 intents (general QA / applicability / field check) with a corrective-RAG retry loop |
 | Rule engine | Deterministic; decides every date, threshold and phase. The LLM never decides an outcome |
-| Golden set | 20/20 on Azure (`uv run python scripts/eval.py`) |
-| RAGAS | Faithfulness 0.922, answer relevancy 0.806 (n=17 of 20; see [Evaluation](#evaluation-ragas-2026-09-04)) |
-| Latency | P50 5.7s / 3,850 tokens warm; ~34s cold start at min-replicas 0 |
+| Golden set | 21/21 on Azure (`uv run python scripts/eval.py`) |
+| RAGAS | Faithfulness 0.950, answer relevancy 0.803 (n=17 of 21). Retrieval scores fell over the same change — see [Evaluation](#evaluation-ragas) |
+| Cost | ≈5,400 tokens per answer (112,923 over the 21-case run); P50 5.7s warm, ~34s cold start at min-replicas 0 |
 | Serving | Azure Container Apps + Azure PostgreSQL 16 (pgvector 0.8.2), 565MB image, scale-to-zero |
 | Models | Azure OpenAI primary, Groq fallback; bge-small embeddings baked into the image |
-| CI | GitHub Actions: 96 tests + ruff → ACR build → deploy. The test job needs no secrets |
+| CI | GitHub Actions: 120 tests + ruff → ACR build → deploy. The test job needs no secrets |
 
-Remaining: Day 11 fix what evaluation exposed, 12 documentation, 13 user testing, 14 buffer.
+Remaining: Day 12 documentation, 13 user testing, 14 buffer.
 
 ## How to run locally
 
@@ -101,14 +101,16 @@ maintains itself. No second service, no application-side sync.
 
 ### Current corpus
 
-| Document | Version | Sections | Chunks | Avg chars |
-|---|---|---|---|---|
-| e-Invoice Guideline (General) | 4.8 (30 Aug 2026) | 51 | 71 | 877 |
-| e-Invoice Specific Guideline | 4.8 (7 Jul 2026) | 17 | 133 | 1038 |
-| e-Invoice General FAQs | updated 5 May 2026 | 127 | 139 | 642 |
+| Document | Version | Sections | Chunks |
+|---|---|---|---|
+| e-Invoice Guideline (General) | 4.8 (30 Aug 2026) | 51 | 86 |
+| e-Invoice Specific Guideline | 4.8 (7 Jul 2026) | 17 | 194 |
+| e-Invoice General FAQs | updated 5 May 2026 | 127 | 140 |
 
-343 chunks total. Superseded versions live in `data/raw/archive/` as fixtures for the
-version-parameterised rule engine.
+420 chunks total, up from 343 before Day 11 split tables into one chunk per row. The
+section counts are unchanged: a row chunk keeps its section's label, which is what keeps
+citations stable across the change. Superseded versions live in `data/raw/archive/` as
+fixtures for the version-parameterised rule engine.
 
 > **The URL slug is case-sensitive.** `wp-content/uploads/irbm-e-invoice-guideline.pdf`
 > serves a stale **v4.6**; `wp-content/uploads/IRBM-e-Invoice-Guideline.pdf` serves the
@@ -118,14 +120,30 @@ version-parameterised rule engine.
 
 ## Known limitations
 
-- Six General Guideline headings have almost no extractable text because their content is
-  a figure or table; they are flagged as `THIN SECTIONS` on every run. Table extraction is
-  not implemented.
+- **The golden set and RAGAS disagree about Day 11, and the disagreement is unresolved.**
+  Row-level table chunking and section-pinned retrieval took the golden set from 20/20 to
+  21/21 and made citations land on the right table row — while RAGAS context recall on the
+  same 13 rule-engine cases fell 0.551 → 0.436 and precision 0.882 → 0.700. Both numbers
+  are measured, with the same judge on the same cases. See [Evaluation](#evaluation-ragas)
+  for the two candidate mechanisms and the one experiment that would settle it.
+- **The daily token budget is one counter shared by development and production.** On
+  2026-09-04 a day of evaluation work spent 1,032,879 tokens against a raised *local*
+  ceiling. Production's own limit stayed at its 150,000 default — the deploy script
+  unsets the override — but the counter is global, so the live app reported
+  `remaining: 0` and refused new questions for the rest of the day. Nobody had asked it
+  anything; the outage was real, just unwitnessed. A per-environment or per-key ceiling
+  is the obvious shape. It is not built.
+- Production runs a 150,000-token daily ceiling; development ran at 1,200,000 for a single
+  day of evaluation. The two differ because they buy different things — one caps what a
+  day of public traffic can cost, the other buys a scoring run, and one RAGAS pass alone
+  is ~263,000 tokens.
+- Tables that extract as text are chunked one row per chunk since Day 11. A heading whose
+  content is a *figure* still yields nothing to chunk; those are flagged `THIN SECTIONS`
+  on every ingest run.
+- `§Appendix 1` citations are served from `data/rules/invoice_fields.json`, the same table
+  the field checker reads — Appendix 1 was never ingested as chunks. So the citation opens,
+  but the appendix is not retrievable: no answer can reach it through search.
 - Source PDFs are gitignored (large, re-downloadable); `manifest.json` is tracked.
-- Retrieval is weaker than the golden set suggests. RAGAS context recall is 0.551 on
-  the 13 cases the rule engine answers, and 0.00 on five of them: the deterministic
-  block supplies the figure and retrieval never surfaces the table row holding it.
-  Day 11 targets this.
 
 ## Frontend
 
@@ -156,27 +174,74 @@ FastAPI serves the compiled bundle from `src/app/static/` at `/` with an SPA fal
 - **New frontend bundle**: `src/app/static/` (179,417 bytes, ~175.2 KB uncompressed; 51.9 KB gzipped)
 - **Runtime image delta**: Net increase of **+174.3 KB** (~0.01% of the total ~1.5 GB image). Node.js and build dependencies are completely discarded across stages.
 
-## Evaluation (RAGAS, 2026-09-04)
+## Evaluation (RAGAS)
 
-| Metric | Score | Cases |
-|---|---|---|
-| Faithfulness | 0.922 | n=17 |
-| Answer Relevancy | 0.806 | n=17 |
-| Context Precision (rag only) | 0.750 | n=2 |
-| Context Precision (rule-engine cases) | 0.882 | n=13 |
-| Context Recall (rag only) | 1.000 | n=2 |
-| Context Recall (rule-engine cases) | 0.551 | n=13 |
+| Metric | Day 10 baseline | After Day 11 | Cases |
+|---|---|---|---|
+| Faithfulness | 0.922 | **0.950** | n=17 |
+| Answer Relevancy | 0.806 | 0.803 | n=17 |
+| Context Precision (rag only) | 0.750 | 0.750 | n=2 |
+| Context Recall (rag only) | 1.000 | 1.000 | n=2 |
+| Context Precision (rule-engine cases) | 0.882 | **0.700** | n=13 |
+| Context Recall (rule-engine cases) | 0.551 | **0.436** | n=13 |
 
-Judge: `chat-small`, the same Azure deployment the app answers with.
+Judge: `chat-small`, the same Azure deployment the app answers with, in both runs. The
+scored set is identical across the two — the same 2 rag, 13 deterministic and 2
+field_check cases, by id. Day 11 added one case (q21, an abstention); abstentions are
+excluded from every metric in both runs, so the extra case moves the excluded count and
+nothing that was measured.
 
-Case mix: 2× rag, 13× deterministic, 2× field_check, 1× clarifying, 2× abstention. 3 excluded from every metric (clarifying: asked for a missing input rather than answering; no claim set to ground, abstention: correct refusal; no claims, no ground truth to recall).
+Excluded: clarifying (asked for a missing input rather than answering, so there is no
+claim set to ground) and abstention (correct refusal, so there are no claims and no
+ground truth to recall). Retrieval metrics are shown separately for rule-engine cases
+because the answer there came from `params.json`, not from the retrieved chunks —
+averaging the two together would describe neither.
 
-Retrieval metrics are shown separately for rule-engine cases because the answer there came from params.json, not from the retrieved chunks -- averaging the two together would describe neither.
+### The two instruments disagree
+
+Day 11 chunked guideline tables one row per chunk and began fetching cited sections by
+metadata instead of by similarity. The golden set went **20/20 → 21/21**, and citations
+got more precise: `§1.6.1(e)` now resolves to the row that actually carries RM3,000,000
+rather than to a 38-character heading. Over that same change, RAGAS context recall on the
+rule-engine cases went **0.551 → 0.436** and precision **0.882 → 0.700**.
+
+Day 10 ranked row-level chunking as the top fix and predicted recall would reach 0.85+.
+It did not. Both numbers above are measured, not estimated.
+
+Two candidate mechanisms, one of them untested:
+
+1. **Fragmentation** (recall). q07 and q11 each fell 1.00 → 0.00 while their context grew
+   from 6 chunks to 8. A reference sentence that used to sit inside one prose block now
+   spans several rows, so no single retrieved chunk clearly entails it — even though every
+   word of it was retrieved. Not a volume effect: total context grew 6,876 → 9,108
+   characters (+32%).
+2. **Rank position** (precision) — **untested hypothesis.** Context precision here is mean
+   average precision, which is rank-sensitive, and pinned sections are *appended* after the
+   hybrid results, at ranks 7–8. A relevant chunk at rank 7 contributes k/7, pulling the
+   mean down even when it is the most authoritative chunk present.
+   **The experiment that settles it:** re-score the same run with pinned chunks ordered
+   first and nothing else changed. If precision returns toward 0.882, the drop was an
+   artifact of rank position rather than a loss of retrieval quality. Not yet run — it
+   costs a full scoring pass.
+
+No winner is claimed between the two instruments. They measure different things: the
+golden set asks whether the answer carried the right facts and citations; RAGAS asks
+whether each retrieved chunk is relevant, in order, and entails the reference. A change
+can genuinely improve one and depress the other. What exists here is a named experiment
+that would resolve which happened.
+
+### Pending: a second judge
+
+The same model family that writes the answers also grades them. The intended answer to
+that is a cross-judge run on Groq's `gpt-oss-120b`. **It is not done.** The chat-small
+pass alone cost 149,601 scoring tokens against a 150,000 daily ceiling, and a half-run
+would have produced no comparison at all. A full pass is ~263,000 tokens (113,363
+answering + 149,601 scoring).
 
 Re-run with `uv run python scripts/ragas_eval.py`; results land in
-`data/eval/ragas-<date>.json` so runs stay comparable. Metric definitions are
-RAGAS's; the implementation is in-repo because every published `ragas` release
-pins `langchain-core<1.0` and this app runs on 1.6.1.
+`data/eval/ragas-<date>-<judge>.json` so runs stay comparable. Metric definitions are
+RAGAS's; the implementation is in-repo because every published `ragas` release pins
+`langchain-core<1.0` and this app runs on 1.6.1.
 
 ## Disclaimer
 
