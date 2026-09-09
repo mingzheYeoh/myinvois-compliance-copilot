@@ -41,15 +41,8 @@ docker compose up -d
 # 3. Config
 Copy-Item .env.example .env
 
-# 4. Source PDFs -> data/raw/  (skip if they are already there)
-$ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-@{
-  "irbm-e-invoice-guideline.pdf"          = "https://www.hasil.gov.my/wp-content/uploads/IRBM-e-Invoice-Guideline.pdf"
-  "irbm-e-invoice-specific-guideline.pdf" = "https://www.hasil.gov.my/wp-content/uploads/IRBM-e-Invoice-Specific-Guideline.pdf"
-  "lhdnm-e-invoice-general-faqs.pdf"      = "https://www.hasil.gov.my/media/0xqitc2t/lhdnm-e-invoice-general-faqs.pdf"
-}.GetEnumerator() | ForEach-Object {
-  Invoke-WebRequest -Uri $_.Value -OutFile "data/raw/$($_.Key)" -UserAgent $ua
-}
+# 4. Source PDFs -> data/raw/   (docs/ingestion.md has the script; the slug is
+#    case-sensitive and the lowercase one serves a stale v4.6)
 
 # 5. Ingest (first run downloads the ~130MB embedding model)
 uv run python scripts/ingest.py
@@ -61,43 +54,17 @@ uv run ruff check .
 
 `--dry-run` parses and reports without touching the database.
 
-## Ingestion design
+## Ingestion
 
-`scripts/ingest.py` turns the LHDN PDFs into citable, searchable chunks.
+`scripts/ingest.py` turns the LHDN PDFs into citable chunks: split per section, with a
+per-document heading regex declared in `data/raw/manifest.json`, and a check that each
+heading *continues* the document's numbering — without which a date (`1.7.2021`) and a
+glossary reference both become phantom sections. A section that is really a table is split
+one chunk per row. Re-ingesting a version replaces it, keyed on `(doc, version)`. Hybrid
+search is Postgres-only: an HNSW index on `vector(384)` beside a generated `tsvector` with
+a GIN index, fused with RRF.
 
-**Chunking is per-section, and the heading pattern is per-document.** LHDN uses three
-different numbering conventions across the three PDFs, so each one declares its own
-heading regex in `data/raw/manifest.json` alongside its version and effective date. Three
-regexes in a data file beat one unmaintainable regex in code, and adding a new guideline
-version is a manifest entry plus a re-run.
-
-**A number that looks like a section usually isn't one.** The parser only accepts a
-heading if its number *continues the document's numbering* (`follows()` in `ingest.py`).
-Without that check, real ingests of these PDFs produced phantom sections from a date
-(`1.7.2021`), a glossary reference (`Universal Business Language Version 2.1`), and the
-numbered sub-bullets inside an FAQ answer — and Specific Guideline §16, *e-Invoice
-treatment during interim relaxation period*, went missing entirely because its heading is
-Title Case where every other heading is uppercase. Each of those is a regression test in
-`tests/test_chunking.py`.
-
-**The Specific Guideline splits again at second-level numbering.** Its top-level sections
-run 20+ pages, so `sub_heading` in the manifest breaks §14 into `14.1`, `14.4`, `14.5` and
-citations become `[Specific Guideline v4.8 §14.4]`. Third-level numbering (`14.4.5`) is
-deliberately left intact — those are numbered *paragraphs*, and splitting there strands
-them of context. `MAX_CHARS` is the fallback only when a sub-section is still too long.
-Each chunk carries the page its text actually came from, not the section's first page.
-
-**Running headers and footers are detected, not configured** — any first or last line
-repeating on more than half the pages is page chrome and is dropped, so
-`E-INVOICE GUIDELINE (VERSION 4.8)` does not end up embedded in all 71 chunks.
-
-**Re-ingesting a version replaces it.** Idempotency is keyed on `(doc, version)`, deleted
-and reinserted in one transaction. Not a per-chunk upsert: sections move between
-revisions, so stale chunks would otherwise survive a re-ingest.
-
-**Hybrid search is Postgres-only.** `chunks.embedding` is a `vector(384)` with an HNSW
-index; `chunks.tsv` is a generated `tsvector` column with a GIN index that Postgres
-maintains itself. No second service, no application-side sync.
+The design decisions and the real defect behind each: [docs/ingestion.md](docs/ingestion.md).
 
 ### Current corpus
 
@@ -107,111 +74,32 @@ maintains itself. No second service, no application-side sync.
 | e-Invoice Specific Guideline | 4.8 (7 Jul 2026) | 17 | 194 |
 | e-Invoice General FAQs | updated 5 May 2026 | 127 | 140 |
 
-420 chunks total, up from 343 before Day 11 split tables into one chunk per row. The
-section counts are unchanged: a row chunk keeps its section's label, which is what keeps
-citations stable across the change. Superseded versions live in `data/raw/archive/` as
-fixtures for the version-parameterised rule engine.
+420 chunks, up from 343 before Day 11 split tables into rows. The section counts are
+unchanged: a row chunk keeps its section's label, which is what keeps citations stable.
 
-> **The URL slug is case-sensitive.** `wp-content/uploads/irbm-e-invoice-guideline.pdf`
-> serves a stale **v4.6**; `wp-content/uploads/IRBM-e-Invoice-Guideline.pdf` serves the
-> current **v4.8**. Search-engine `/media/<slug>/` links redirect to the stale file.
-> Always confirm the version string on page 1 after fetching — v4.8 contains
-> `RM3,000,000` and no `RM1,000,000`.
+> The PDF URL slug is **case-sensitive**, and the lowercase one serves a stale v4.6. See
+> [fetching the source PDFs](docs/ingestion.md#fetching-the-source-pdfs).
 
 ## Verifying an answer
 
-The project's claim is that an answer can be checked. Until Day 11, checking meant
-opening a 200-page PDF and finding §1.6.1(e) by hand — which nobody does, so in practice
-the citations were decoration.
+The project's claim is that an answer can be checked. Until Day 11 that meant opening a
+200-page PDF and finding §1.6.1(e) by hand — which nobody does, so in practice the
+citations were decoration.
 
-Every citation is now a button, inline in the answer and in the list beneath it. Clicking
-one expands the stored source chunk in place, with its document, version, section and
-page. `GET /chunk?ref=<citation>` re-reads a row the ingest already wrote: read-only, no
-LLM call, and it keeps working after the daily quota is spent — which is exactly when
-someone is left holding an answer they want to check.
+Every citation is now a button. Clicking one expands the stored source chunk in place,
+with its document, version, section and page. `GET /chunk?ref=<citation>` re-reads a row
+the ingest already wrote: read-only, no LLM call, and it keeps working after the daily
+quota is spent — which is exactly when someone is left holding an answer they want to
+check. The panel shows the section and page of the row that was **actually stored**, not
+the ones the answer wrote, so a mismatch is visible rather than hidden.
 
-Two details that matter more than they look:
-
-- **The ref is parsed server-side.** The browser sends the bracketed citation text
-  verbatim and never learns what a citation looks like, so there is no second copy of the
-  regex that `src/app/rag/citations.py` exists to prevent. Page ranges the model writes on
-  its own ("p44-p50") normalise on the way in for free.
-- **The panel shows the section and page of the row that was actually stored**, not the
-  ones the answer wrote. A citation pointing at the wrong page shows the right one, so the
-  mismatch is visible instead of hidden.
-
-### Reporting a wrong answer
-
-There is one "Report a problem" link under each answer, and no rating widget. The absence
-is the deliberate part.
-
-A user asking whether they must issue an e-Invoice cannot judge whether the answer is
-correct — that is *why* they are asking. A satisfaction or accuracy rating would therefore
-measure how plausible an answer *feels*, which is the failure mode Days 2–4 were spent
-removing: a fluent, confident, wrong answer would score well, and a correct "the
-guidelines do not address this" would score badly.
-
-So the only channel is one click that says *this is wrong*. It carries no free text and no
-user identifier — nothing to moderate, nothing to leak — and the server already holds the
-question, answer, citations, route, model and LangSmith run id. `scripts/feedback.py`
-lists recent reports with their trace URL, so a complaint becomes an execution tree, and
+There is one "Report a problem" link under each answer, and **no rating widget**. A user
+asking whether they must issue an e-Invoice cannot judge whether the answer is correct —
+that is *why* they are asking — so a rating would measure how plausible an answer *feels*,
+which is the failure mode Days 2–4 were spent removing. The click carries no free text and
+no user identifier; the server already holds the question, answer, citations, route, model
+and LangSmith run id, and `scripts/feedback.py` turns a report into an execution tree, and
 from there a golden case.
-
-## Known limitations
-
-- **The golden set and RAGAS disagree about Day 11, and the disagreement is unresolved.**
-  Row-level table chunking and section-pinned retrieval took the golden set from 20/20 to
-  21/21 and made citations land on the right table row — while RAGAS context recall on the
-  same 13 rule-engine cases fell 0.551 → 0.436 and precision 0.882 → 0.700. Both numbers
-  are measured, with the same judge on the same cases. See [Evaluation](#evaluation-ragas)
-  for the two candidate mechanisms and the one experiment that would settle it.
-- **The daily token budget is one counter shared by development and production.** On
-  2026-09-04 a day of evaluation work spent 1,032,879 tokens against a raised *local*
-  ceiling. Production's own limit stayed at its 150,000 default — the deploy script
-  unsets the override — but the counter is global, so the live app reported
-  `remaining: 0` and refused new questions for the rest of the day. Nobody had asked it
-  anything; the outage was real, just unwitnessed. A per-environment or per-key ceiling
-  is the obvious shape. It is not built.
-- Production runs a 150,000-token daily ceiling; development ran at 1,200,000 for a single
-  day of evaluation. The two differ because they buy different things — one caps what a
-  day of public traffic can cost, the other buys a scoring run, and one RAGAS pass alone
-  is ~263,000 tokens.
-- Tables that extract as text are chunked one row per chunk since Day 11. A heading whose
-  content is a *figure* still yields nothing to chunk; those are flagged `THIN SECTIONS`
-  on every ingest run.
-- `§Appendix 1` citations are served from `data/rules/invoice_fields.json`, the same table
-  the field checker reads — Appendix 1 was never ingested as chunks. So the citation opens,
-  but the appendix is not retrievable: no answer can reach it through search.
-- Source PDFs are gitignored (large, re-downloadable); `manifest.json` is tracked.
-
-## Frontend
-
-A mobile-first Single Page Application designed for business owners on mobile devices, built with **Vite**, **React**, and **TypeScript** (zero UI libraries, zero state management libraries).
-
-### Features
-- **Ask Assistant**: Multi-turn chat session with in-memory `thread_id` preservation (supports profile collection flows like Day 4 Q2). Displays route badges (**General**, **Applicability**, **Field Check**), structured guideline citations (`doc`, `version`, `section`, `page`), and callout styling for "confirm with LHDN" notices.
-- **Check Invoice**: Deterministic validation against official IRBM Appendix 1 specifications via `/validate`. Zero LLM token consumption; remains 100% operational when daily token budget is exhausted. Offers both a Quick Form (common fields) and raw JSON editor.
-- **Header & System Health**: Displays active guideline document versions from `/health` and live token budget meter. Handles cold-starts by displaying a "~35s waking up" indicator and polling `/health` until `status == "ok"` before activating the assistant.
-- **Defensive Error Handling**: Client-side character counter prevents exceeding the 2,000 character limit (guarding against HTTP 413); gracefully distinguishes 429 quota exhaustion (displaying exact reset time) from rate-limit throttling; and provides retry buttons without losing typed input on network disruptions.
-
-### Development & Build
-```powershell
-# Run Vite dev server with proxy to FastAPI (port 8000)
-cd frontend
-npm install
-npm run dev
-
-# Compile production bundle into src/app/static/
-npm run build
-```
-
-FastAPI serves the compiled bundle from `src/app/static/` at `/` with an SPA fallback for client routing.
-
-### Docker Multi-Stage Build & Image Size Delta
-`Dockerfile` uses a multi-stage build with `node:22-slim` to compile the frontend assets, which are copied into the Python runtime container:
-- **Previous static asset**: `static/index.html` (5,069 bytes, ~5.0 KB)
-- **New frontend bundle**: `src/app/static/` (179,417 bytes, ~175.2 KB uncompressed; 51.9 KB gzipped)
-- **Runtime image delta**: Net increase of **+174.3 KB** (~0.01% of the total ~1.5 GB image). Node.js and build dependencies are completely discarded across stages.
 
 ## Evaluation (RAGAS)
 
@@ -224,63 +112,42 @@ FastAPI serves the compiled bundle from `src/app/static/` at `/` with an SPA fal
 | Context Precision (rule-engine cases) | 0.882 | **0.700** | n=13 |
 | Context Recall (rule-engine cases) | 0.551 | **0.436** | n=13 |
 
-Judge: `chat-small`, the same Azure deployment the app answers with, in both runs. The
-scored set is identical across the two — the same 2 rag, 13 deterministic and 2
-field_check cases, by id. Day 11 added one case (q21, an abstention); abstentions are
-excluded from every metric in both runs, so the extra case moves the excluded count and
-nothing that was measured.
+Same judge, same scored cases, both runs. Faithfulness rose; retrieval fell over the very
+change that took the golden set to 21/21. **That disagreement is the most interesting
+result in the project, and it is not resolved.** The two candidate mechanisms, the untested
+rank-position hypothesis and the one experiment that would settle it — plus the pending
+cross-judge run and what a run costs — are in [docs/evaluation.md](docs/evaluation.md).
 
-Excluded: clarifying (asked for a missing input rather than answering, so there is no
-claim set to ground) and abstention (correct refusal, so there are no claims and no
-ground truth to recall). Retrieval metrics are shown separately for rule-engine cases
-because the answer there came from `params.json`, not from the retrieved chunks —
-averaging the two together would describe neither.
+## Known limitations
 
-### The two instruments disagree
+- **The golden set and RAGAS disagree about Day 11, and the disagreement is unresolved.**
+  Row-level chunking and section-pinned retrieval took the golden set 20/20 → 21/21 and
+  made citations land on the right table row, while RAGAS context recall on the same 13
+  rule-engine cases fell 0.551 → 0.436 and precision 0.882 → 0.700 — same judge, same
+  cases, both measured. Day 10 predicted 0.85+; it was wrong.
+- **One token counter serves development and production.** On 2026-09-04 a day of
+  evaluation work spent 1,032,879 tokens against a raised *local* ceiling. Production's own
+  limit stayed at its 150,000 default — the deploy script unsets the override — but the
+  counter is global, so the live app reported `remaining: 0` and refused new questions for
+  the rest of the day. Nobody had asked it anything; the outage was real, just unwitnessed.
+  A per-environment or per-key ceiling is the obvious shape. It is not built.
+- Production runs a 150,000-token daily ceiling; development ran at 1,200,000 for a single
+  day of evaluation. The two buy different things — one caps what a day of public traffic
+  can cost, the other buys a scoring run, and one RAGAS pass alone is ~263,000 tokens.
+- Tables that extract as text are chunked one row per chunk since Day 11. A heading whose
+  content is a *figure* still yields nothing to chunk; those are flagged `THIN SECTIONS`
+  on every ingest run.
+- `§Appendix 1` citations are served from `data/rules/invoice_fields.json`, the same table
+  the field checker reads — Appendix 1 was never ingested as chunks. The citation opens,
+  but the appendix is not retrievable: no answer can reach it through search.
+- Source PDFs are gitignored (large, re-downloadable); `manifest.json` is tracked.
 
-Day 11 chunked guideline tables one row per chunk and began fetching cited sections by
-metadata instead of by similarity. The golden set went **20/20 → 21/21**, and citations
-got more precise: `§1.6.1(e)` now resolves to the row that actually carries RM3,000,000
-rather than to a 38-character heading. Over that same change, RAGAS context recall on the
-rule-engine cases went **0.551 → 0.436** and precision **0.882 → 0.700**.
+## Frontend
 
-Day 10 ranked row-level chunking as the top fix and predicted recall would reach 0.85+.
-It did not. Both numbers above are measured, not estimated.
-
-Two candidate mechanisms, one of them untested:
-
-1. **Fragmentation** (recall). q07 and q11 each fell 1.00 → 0.00 while their context grew
-   from 6 chunks to 8. A reference sentence that used to sit inside one prose block now
-   spans several rows, so no single retrieved chunk clearly entails it — even though every
-   word of it was retrieved. Not a volume effect: total context grew 6,876 → 9,108
-   characters (+32%).
-2. **Rank position** (precision) — **untested hypothesis.** Context precision here is mean
-   average precision, which is rank-sensitive, and pinned sections are *appended* after the
-   hybrid results, at ranks 7–8. A relevant chunk at rank 7 contributes k/7, pulling the
-   mean down even when it is the most authoritative chunk present.
-   **The experiment that settles it:** re-score the same run with pinned chunks ordered
-   first and nothing else changed. If precision returns toward 0.882, the drop was an
-   artifact of rank position rather than a loss of retrieval quality. Not yet run — it
-   costs a full scoring pass.
-
-No winner is claimed between the two instruments. They measure different things: the
-golden set asks whether the answer carried the right facts and citations; RAGAS asks
-whether each retrieved chunk is relevant, in order, and entails the reference. A change
-can genuinely improve one and depress the other. What exists here is a named experiment
-that would resolve which happened.
-
-### Pending: a second judge
-
-The same model family that writes the answers also grades them. The intended answer to
-that is a cross-judge run on Groq's `gpt-oss-120b`. **It is not done.** The chat-small
-pass alone cost 149,601 scoring tokens against a 150,000 daily ceiling, and a half-run
-would have produced no comparison at all. A full pass is ~263,000 tokens (113,363
-answering + 149,601 scoring).
-
-Re-run with `uv run python scripts/ragas_eval.py`; results land in
-`data/eval/ragas-<date>-<judge>.json` so runs stay comparable. Metric definitions are
-RAGAS's; the implementation is in-repo because every published `ragas` release pins
-`langchain-core<1.0` and this app runs on 1.6.1.
+A mobile-first SPA — Vite, React, TypeScript, no UI or state-management libraries. **Ask**
+is multi-turn chat with clickable citations; **Check Invoice** validates against Appendix 1
+deterministically and spends no tokens, so it keeps working when the budget is gone.
+Features, build and image-size detail: [docs/frontend.md](docs/frontend.md).
 
 ## Disclaimer
 
