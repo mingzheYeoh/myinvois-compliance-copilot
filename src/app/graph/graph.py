@@ -3,7 +3,7 @@
     router
      ├─ general_qa    -> retrieve -> grade_docs -┬ pass -> generate -> END
      │                                           └ fail -> rewrite_query -> retrieve
-     ├─ applicability -> profile_extract -> rule_engine -> retrieve -> generate -> END
+     ├─ applicability -> profile_extract -> rule_engine -> retrieve_for_rules -> generate
      └─ field_check   -> validate_fields -> generate -> END
 
 The LLM classifies, extracts, grades, rewrites and explains. It never decides a

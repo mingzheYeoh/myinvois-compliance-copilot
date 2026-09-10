@@ -112,8 +112,10 @@ def remaining() -> int:
 def chosen_model(small: bool = False) -> str:
     """Which model should serve the next call.
 
-    Falls back to compound-mini once the gpt-oss daily budget is spent, so the
-    service degrades rather than stopping.
+    Classification degrades to the small model, spent budget or not. Answering
+    does NOT: once the budget is gone this raises rather than serving a compliance
+    answer from a weaker model, for the reason recorded on FALLBACK_MODEL above.
+    The API turns that into its quota message, and /validate keeps working.
     """
     if small:
         # Classification is safe on the small model, spent budget or not.
