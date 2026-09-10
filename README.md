@@ -2,10 +2,9 @@
 
 An agentic RAG assistant for Malaysia's mandatory e-Invoicing (LHDN / MyInvois), grounded
 in the official IRBM guidelines. Every answer cites the guideline **version and section
-number** so a user can verify it against the source PDF. Compliance determinations — which
-implementation phase a business falls into, from what date, under which relaxation — are
-made by a **deterministic Python rule engine, never by the LLM**; the model's job is to
-classify, retrieve, and explain with citations, not to decide outcomes.
+number**, and every citation opens the source text it points at. Compliance outcomes —
+which implementation phase a business falls into, from what date, under which relaxation —
+are decided by a **deterministic rule engine, never by the LLM**.
 
 See [PLAN.md](PLAN.md) for the full architecture and two-week build plan.
 
@@ -17,7 +16,7 @@ See [PLAN.md](PLAN.md) for the full architecture and two-week build plan.
 |---|---|
 | Corpus | 420 chunks — 86 Guideline v4.8, 194 Specific Guideline v4.8, 140 FAQ 2026-05-05 |
 | Graph | 3 intents (general QA / applicability / field check) with a corrective-RAG retry loop |
-| Rule engine | Deterministic; decides every date, threshold and phase. The LLM never decides an outcome |
+| Rule engine | Deterministic Python; decides every date, threshold and phase |
 | Golden set | 21/21 on Azure (`uv run python scripts/eval.py`) |
 | RAGAS | Faithfulness 0.950, answer relevancy 0.803 (n=17 of 21). Retrieval scores fell over the same change — see [Evaluation](#evaluation-ragas) |
 | Cost | ≈5,400 tokens per answer (112,923 over the 21-case run); P50 5.7s warm, ~34s cold start at min-replicas 0 |
@@ -26,6 +25,49 @@ See [PLAN.md](PLAN.md) for the full architecture and two-week build plan.
 | CI | GitHub Actions: 120 tests + ruff → ACR build → deploy. The test job needs no secrets |
 
 Remaining: Day 12 documentation, 13 user testing, 14 buffer.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    Q(["question"]) --> R{"router · LLM"}
+
+    R -->|general_qa| RET["retrieve<br/>pgvector + Postgres FTS, fused with RRF"]
+    R -->|applicability| PE["profile_extract · LLM"]
+    R -->|field_check| VF["validate_fields · Python<br/>Appendix 1 table"]
+
+    RET --> GD{"grade_docs · LLM"}
+    GD -->|"pass"| GEN["generate · LLM<br/>structured: coverage + answer"]
+    GD -->|"fail, max 2 retries"| RW["rewrite_query · LLM"]
+    RW --> RET
+
+    PE --> RE["rule_engine · Python<br/>phase, dates, thresholds"]
+    RE --> RFR["retrieve_for_rules<br/>cited sections pinned by metadata"]
+    RFR --> GEN
+    VF --> GEN
+
+    GEN --> OUT(["answer + citations"])
+```
+
+The LLM classifies, extracts, grades, rewrites and explains. **It never decides a
+compliance outcome.**
+
+### Why the rule engine is not an LLM
+
+Whether a business must issue an e-Invoice, from what date, under which relaxation, is a
+lookup in a published table — not a judgement. A model reading that table is a worse
+oracle than the table.
+
+The failure is measured, not hypothetical. Asked *how long is the relaxation period for
+Phase 4?*, the model answered "six (6) months" from §16.1's prose while the rule engine's
+Table 16.1 fact sat in the same prompt. Fluent, correctly cited, and wrong. So
+`rule_engine` computes phase, implementation date, relaxation window and thresholds from
+`params.json` in pure Python and hands `generate` a fixed block; the model's only job is
+to say it in English with the citations the engine already chose.
+
+It is the cheapest part of the system to be certain about, and the part where a wrong
+answer would cost the user most — so it is the part with unit tests that double as
+documentation of the rules.
 
 ## How to run locally
 
@@ -96,10 +138,9 @@ the ones the answer wrote, so a mismatch is visible rather than hidden.
 There is one "Report a problem" link under each answer, and **no rating widget**. A user
 asking whether they must issue an e-Invoice cannot judge whether the answer is correct —
 that is *why* they are asking — so a rating would measure how plausible an answer *feels*,
-which is the failure mode Days 2–4 were spent removing. The click carries no free text and
-no user identifier; the server already holds the question, answer, citations, route, model
-and LangSmith run id, and `scripts/feedback.py` turns a report into an execution tree, and
-from there a golden case.
+which is the failure mode this whole design removes. The click carries no free text and no
+user identifier; the server already holds the rest, and `scripts/feedback.py` turns a
+report into a LangSmith execution tree, and from there a golden case.
 
 ## Evaluation (RAGAS)
 
@@ -118,22 +159,43 @@ result in the project, and it is not resolved.** The two candidate mechanisms, t
 rank-position hypothesis and the one experiment that would settle it — plus the pending
 cross-judge run and what a run costs — are in [docs/evaluation.md](docs/evaluation.md).
 
+## Cost and abuse
+
+| Guard | Mechanism | When it trips |
+|---|---|---|
+| Input size | 2,000 characters | 413 naming the limit, before the graph runs |
+| Request rate | per IP: `/chat` 10/min, `/feedback` 20/min, `/validate` 30/min, `/chunk` 60/min | 429 |
+| Daily spend | 150,000 tokens, counted in Postgres and charged at the client in `get_llm()` | 429 with the UTC reset time |
+| Idle cost | Container Apps min-replicas 0 | scales to zero; ~34s cold start |
+| Cost drift | $20/month budget alerts, actual and forecast | email before the bill, not after |
+
+Two properties matter more than the numbers.
+
+**Degrading is not the same as answering worse.** When the budget is spent, classification
+still runs on the small model but *answering does not fall back*: `chosen_model()` raises
+rather than serve a compliance answer from a weaker model, because that is exactly how the
+"six (6) months" error above was produced. `/validate`, `/chunk` and `/health` touch no
+LLM, so invoice validation and citation checking keep working with the quota gone.
+
+**Nothing leaks on the way out.** Secrets reach Azure as Container Apps secrets — never a
+file, an image layer or a command line — and the unhandled-exception handler returns a
+message and an exception type, never a traceback, to a public URL.
+
 ## Known limitations
 
 - **The golden set and RAGAS disagree about Day 11, and the disagreement is unresolved.**
-  Row-level chunking and section-pinned retrieval took the golden set 20/20 → 21/21 and
-  made citations land on the right table row, while RAGAS context recall on the same 13
-  rule-engine cases fell 0.551 → 0.436 and precision 0.882 → 0.700 — same judge, same
-  cases, both measured. Day 10 predicted 0.85+; it was wrong.
+  The same change that took the golden set to 21/21 moved retrieval scores down; which
+  instrument is right is a named experiment nobody has run. See
+  [Evaluation](#evaluation-ragas).
 - **One token counter serves development and production.** On 2026-09-04 a day of
   evaluation work spent 1,032,879 tokens against a raised *local* ceiling. Production's own
   limit stayed at its 150,000 default — the deploy script unsets the override — but the
   counter is global, so the live app reported `remaining: 0` and refused new questions for
   the rest of the day. Nobody had asked it anything; the outage was real, just unwitnessed.
   A per-environment or per-key ceiling is the obvious shape. It is not built.
-- Production runs a 150,000-token daily ceiling; development ran at 1,200,000 for a single
-  day of evaluation. The two buy different things — one caps what a day of public traffic
-  can cost, the other buys a scoring run, and one RAGAS pass alone is ~263,000 tokens.
+- Development ran at a 1,200,000-token ceiling for a single day of evaluation against
+  production's 150,000. They buy different things: one caps a day of public traffic, the
+  other buys a scoring run — one RAGAS pass alone is ~263,000 tokens.
 - Tables that extract as text are chunked one row per chunk since Day 11. A heading whose
   content is a *figure* still yields nothing to chunk; those are flagged `THIN SECTIONS`
   on every ingest run.
